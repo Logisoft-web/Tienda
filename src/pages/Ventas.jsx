@@ -115,31 +115,31 @@ export default function Ventas() {
           </div>
         </div>
 
-        {/* Grid productos */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {/* Grid productos — más grande en tablet para touch */}
+        <div className="flex-1 overflow-y-auto p-3 md:p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
             {productosFiltrados.map(prod => {
               const enCarrito = carrito.find(i => i.producto_id === prod.id)
               const sinStock = prod.stock === 0
               return (
                 <button key={prod.id} onClick={() => agregarAlCarrito(prod)} disabled={sinStock}
-                  className={`relative bg-white rounded-2xl p-4 text-left border-2 transition-all shadow-sm hover:shadow-md ${
+                  className={`relative bg-white rounded-2xl p-3 md:p-4 text-left border-2 transition-all shadow-sm active:scale-95 ${
                     sinStock ? 'opacity-50 cursor-not-allowed border-gray-100' :
-                    enCarrito ? 'border-primary shadow-primary/20' : 'border-gray-100 hover:border-primary/40'
+                    enCarrito ? 'border-primary shadow-md shadow-primary/20' : 'border-gray-100 hover:border-primary/40'
                   }`}>
-                  <div className="text-3xl mb-2">🍺</div>
+                  <div className="text-3xl md:text-4xl mb-2">🍺</div>
                   <p className="text-sm font-semibold text-dark leading-tight">{prod.nombre}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{prod.categoria}</p>
-                  <p className="text-primary font-bold mt-2">${prod.precio.toFixed(2)}</p>
+                  <p className="text-primary font-bold text-base mt-2">${prod.precio.toFixed(2)}</p>
                   <p className={`text-xs mt-1 ${prod.stock <= prod.stock_minimo ? 'text-orange-500' : 'text-gray-400'}`}>
                     Stock: {prod.stock}
                   </p>
                   {enCarrito && (
-                    <span className="absolute top-2 right-2 w-5 h-5 bg-primary rounded-full text-white text-xs flex items-center justify-center font-bold">
+                    <span className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full text-white text-xs flex items-center justify-center font-bold shadow">
                       {enCarrito.cantidad}
                     </span>
                   )}
-                  {sinStock && <span className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-2xl text-xs font-bold text-red-500">AGOTADO</span>}
+                  {sinStock && <span className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl text-xs font-bold text-red-500">AGOTADO</span>}
                 </button>
               )
             })}
@@ -147,8 +147,8 @@ export default function Ventas() {
         </div>
       </div>
 
-      {/* Panel carrito */}
-      <div className="w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-gray-100 flex flex-col shadow-xl">
+      {/* Panel carrito — más ancho en tablet */}
+      <div className="w-full md:w-96 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-gray-100 flex flex-col shadow-xl shrink-0">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-display font-bold text-dark flex items-center gap-2">
             <ShoppingCart size={18} className="text-primary" /> Carrito

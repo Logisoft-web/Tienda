@@ -172,6 +172,28 @@ app.get('/api/caja/estado', auth, async (req, res) => {
   res.json(caja ? { ...caja, id: caja._id } : null)
 })
 
+// Todas las cajas abiertas con info del usuario (para admin)
+app.get('/api/caja/activas', auth, adminOnly, async (req, res) => {
+  const cajas = await db.caja.find({ estado: 'abierta' }).sort({ abierta_en: -1 })
+  // Para cada caja, contar ventas del día
+  const hoy = new Date().toISOString().slice(0, 10)
+  const result = await Promise.all(cajas.map(async (c) => {
+    const ventas = await db.ventas.find({ usuario_id: c.usuario_id, estado: 'completada' })
+    const ventasHoy = ventas.filter(v => v.creado_en.slice(0, 10) === hoy)
+    const totalHoy = ventasHoy.reduce((s, v) => s + v.total, 0)
+    return {
+      id: c._id,
+      usuario: c.usuario,
+      usuario_id: c.usuario_id,
+      monto_inicial: c.monto_inicial,
+      abierta_en: c.abierta_en,
+      ventas_hoy: ventasHoy.length,
+      total_hoy: totalHoy
+    }
+  }))
+  res.json(result)
+})
+
 app.post('/api/caja/abrir', auth, async (req, res) => {
   const abierta = await db.caja.findOne({ estado: 'abierta' })
   if (abierta) return res.status(400).json({ error: 'Caja ya abierta' })

@@ -46,6 +46,7 @@ export const api = {
 
   // Caja
   getCajaEstado: () => req('GET', '/caja/estado'),
+  getCajasActivas: () => req('GET', '/caja/activas'),
   abrirCaja: (body) => req('POST', '/caja/abrir', body),
   cerrarCaja: (body) => req('POST', '/caja/cerrar', body),
   getMovimientos: (params = {}) => {
