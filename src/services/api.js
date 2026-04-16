@@ -44,6 +44,19 @@ export const api = {
   createVenta: (body) => req('POST', '/ventas', body),
   cancelarVenta: (id) => req('PATCH', `/ventas/${id}/cancelar`),
 
+  // Insumos
+  getInsumos: () => req('GET', '/insumos'),
+  createInsumo: (body) => req('POST', '/insumos', body),
+  updateInsumo: (id, body) => req('PUT', `/insumos/${id}`, body),
+  deleteInsumo: (id) => req('DELETE', `/insumos/${id}`),
+  ajustarStockInsumo: (id, body) => req('PATCH', `/insumos/${id}/stock`, body),
+
+  // Recetas
+  getRecetas: () => req('GET', '/recetas'),
+  getReceta: (producto_id) => req('GET', `/recetas/${producto_id}`),
+  saveReceta: (body) => req('POST', '/recetas', body),
+  deleteReceta: (producto_id) => req('DELETE', `/recetas/${producto_id}`),
+
   // Caja
   getCajaEstado: () => req('GET', '/caja/estado'),
   getCajasActivas: () => req('GET', '/caja/activas'),

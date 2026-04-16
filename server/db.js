@@ -13,6 +13,8 @@ export const db = {
   ventaItems:  Datastore.create({ filename: join(dir, 'venta_items.db'), autoload: true }),
   movimientos: Datastore.create({ filename: join(dir, 'movimientos.db'), autoload: true }),
   caja:        Datastore.create({ filename: join(dir, 'caja.db'),        autoload: true }),
+  insumos:     Datastore.create({ filename: join(dir, 'insumos.db'),     autoload: true }),
+  recetas:     Datastore.create({ filename: join(dir, 'recetas.db'),     autoload: true }),
 }
 
 // Índices únicos
@@ -42,6 +44,81 @@ async function seed() {
       await db.productos.insert({ ...p, creado_en: new Date().toISOString() })
     }
     console.log('✅ Base de datos inicializada con datos de ejemplo')
+
+    // Insumos de ejemplo
+    const insumosSeed = [
+      { nombre: 'Vaso Grande (32oz)',   unidad: 'pieza',  stock: 500, stock_minimo: 50, activo: true },
+      { nombre: 'Vaso Mediano (16oz)',  unidad: 'pieza',  stock: 500, stock_minimo: 50, activo: true },
+      { nombre: 'Vaso Pequeño (12oz)', unidad: 'pieza',  stock: 300, stock_minimo: 30, activo: true },
+      { nombre: 'Pitillo grueso',       unidad: 'pieza',  stock: 600, stock_minimo: 60, activo: true },
+      { nombre: 'Pitillo delgado',      unidad: 'pieza',  stock: 600, stock_minimo: 60, activo: true },
+      { nombre: 'Cerveza 330ml',        unidad: 'botella',stock: 200, stock_minimo: 24, activo: true },
+      { nombre: 'Limón',               unidad: 'unidad', stock: 300, stock_minimo: 30, activo: true },
+      { nombre: 'Sal de mar',          unidad: 'gramo',  stock: 2000,stock_minimo: 200, activo: true },
+      { nombre: 'Chamoy',              unidad: 'ml',     stock: 1000,stock_minimo: 100, activo: true },
+      { nombre: 'Chile en polvo',      unidad: 'gramo',  stock: 500, stock_minimo: 50,  activo: true },
+      { nombre: 'Mango en cubos',      unidad: 'gramo',  stock: 1000,stock_minimo: 100, activo: true },
+      { nombre: 'Tamarindo líquido',   unidad: 'ml',     stock: 800, stock_minimo: 80,  activo: true },
+      { nombre: 'Pepino en rodajas',   unidad: 'gramo',  stock: 500, stock_minimo: 50,  activo: true },
+      { nombre: 'Bolsa para llevar',   unidad: 'pieza',  stock: 200, stock_minimo: 20,  activo: true },
+      { nombre: 'Servilleta',          unidad: 'pieza',  stock: 1000,stock_minimo: 100, activo: true },
+    ]
+    const insumosInsertados = {}
+    for (const ins of insumosSeed) {
+      const doc = await db.insumos.insert({ ...ins, creado_en: new Date().toISOString() })
+      insumosInsertados[ins.nombre] = doc._id
+    }
+
+    // Buscar productos para crear recetas
+    const prods = await db.productos.find({})
+    const prodMap = {}
+    for (const p of prods) prodMap[p.nombre] = p._id
+
+    // Recetas de ejemplo — qué insumos usa cada chelada
+    const recetasSeed = [
+      {
+        producto_id: prodMap['Chelada Clásica'],
+        producto_nombre: 'Chelada Clásica',
+        ingredientes: [
+          { insumo_id: insumosInsertados['Vaso Mediano (16oz)'], insumo_nombre: 'Vaso Mediano (16oz)', cantidad: 1 },
+          { insumo_id: insumosInsertados['Pitillo grueso'],       insumo_nombre: 'Pitillo grueso',      cantidad: 1 },
+          { insumo_id: insumosInsertados['Cerveza 330ml'],        insumo_nombre: 'Cerveza 330ml',       cantidad: 1 },
+          { insumo_id: insumosInsertados['Limón'],               insumo_nombre: 'Limón',               cantidad: 1 },
+          { insumo_id: insumosInsertados['Sal de mar'],          insumo_nombre: 'Sal de mar',          cantidad: 5 },
+          { insumo_id: insumosInsertados['Servilleta'],          insumo_nombre: 'Servilleta',          cantidad: 1 },
+        ]
+      },
+      {
+        producto_id: prodMap['Chelada Picante'],
+        producto_nombre: 'Chelada Picante',
+        ingredientes: [
+          { insumo_id: insumosInsertados['Vaso Mediano (16oz)'], insumo_nombre: 'Vaso Mediano (16oz)', cantidad: 1 },
+          { insumo_id: insumosInsertados['Pitillo grueso'],       insumo_nombre: 'Pitillo grueso',      cantidad: 1 },
+          { insumo_id: insumosInsertados['Cerveza 330ml'],        insumo_nombre: 'Cerveza 330ml',       cantidad: 1 },
+          { insumo_id: insumosInsertados['Limón'],               insumo_nombre: 'Limón',               cantidad: 1 },
+          { insumo_id: insumosInsertados['Chamoy'],              insumo_nombre: 'Chamoy',              cantidad: 20 },
+          { insumo_id: insumosInsertados['Chile en polvo'],      insumo_nombre: 'Chile en polvo',      cantidad: 5 },
+          { insumo_id: insumosInsertados['Servilleta'],          insumo_nombre: 'Servilleta',          cantidad: 1 },
+        ]
+      },
+      {
+        producto_id: prodMap['Chelada Mango'],
+        producto_nombre: 'Chelada Mango',
+        ingredientes: [
+          { insumo_id: insumosInsertados['Vaso Grande (32oz)'],  insumo_nombre: 'Vaso Grande (32oz)',  cantidad: 1 },
+          { insumo_id: insumosInsertados['Pitillo grueso'],       insumo_nombre: 'Pitillo grueso',      cantidad: 1 },
+          { insumo_id: insumosInsertados['Cerveza 330ml'],        insumo_nombre: 'Cerveza 330ml',       cantidad: 1 },
+          { insumo_id: insumosInsertados['Mango en cubos'],      insumo_nombre: 'Mango en cubos',      cantidad: 80 },
+          { insumo_id: insumosInsertados['Chamoy'],              insumo_nombre: 'Chamoy',              cantidad: 15 },
+          { insumo_id: insumosInsertados['Chile en polvo'],      insumo_nombre: 'Chile en polvo',      cantidad: 3 },
+          { insumo_id: insumosInsertados['Servilleta'],          insumo_nombre: 'Servilleta',          cantidad: 1 },
+        ]
+      },
+    ]
+    for (const r of recetasSeed) {
+      if (r.producto_id) await db.recetas.insert({ ...r, creado_en: new Date().toISOString() })
+    }
+    console.log('✅ Insumos y recetas de ejemplo creados')
   }
 }
 

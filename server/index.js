@@ -111,7 +111,71 @@ app.delete('/api/productos/:id', auth, adminOnly, async (req, res) => {
   res.json({ ok: true })
 })
 
-// ── VENTAS ────────────────────────────────────────────────────────────────────
+// ── INSUMOS ───────────────────────────────────────────────────────────────────
+app.get('/api/insumos', auth, async (req, res) => {
+  const rows = await db.insumos.find({ activo: true }).sort({ nombre: 1 })
+  res.json(rows.map(i => ({ ...i, id: i._id })))
+})
+
+app.post('/api/insumos', auth, adminOnly, async (req, res) => {
+  const { nombre, unidad, stock, stock_minimo } = req.body
+  const doc = await db.insumos.insert({ nombre, unidad: unidad || 'pieza', stock: +(stock || 0), stock_minimo: +(stock_minimo || 10), activo: true, creado_en: now() })
+  res.json({ id: doc._id })
+})
+
+app.put('/api/insumos/:id', auth, adminOnly, async (req, res) => {
+  const { nombre, unidad, stock, stock_minimo, activo } = req.body
+  await db.insumos.update({ _id: req.params.id }, { $set: { nombre, unidad, stock: +stock, stock_minimo: +stock_minimo, activo: activo ?? true } })
+  res.json({ ok: true })
+})
+
+app.patch('/api/insumos/:id/stock', auth, adminOnly, async (req, res) => {
+  const { cantidad, tipo } = req.body
+  const ins = await db.insumos.findOne({ _id: req.params.id })
+  if (!ins) return res.status(404).json({ error: 'No encontrado' })
+  let nuevoStock = ins.stock
+  if (tipo === 'entrada') nuevoStock += +cantidad
+  else if (tipo === 'salida') nuevoStock -= +cantidad
+  else nuevoStock = +cantidad
+  await db.insumos.update({ _id: req.params.id }, { $set: { stock: nuevoStock } })
+  res.json({ stock: nuevoStock })
+})
+
+app.delete('/api/insumos/:id', auth, adminOnly, async (req, res) => {
+  await db.insumos.update({ _id: req.params.id }, { $set: { activo: false } })
+  res.json({ ok: true })
+})
+
+// ── RECETAS ───────────────────────────────────────────────────────────────────
+app.get('/api/recetas', auth, async (req, res) => {
+  const rows = await db.recetas.find({})
+  res.json(rows.map(r => ({ ...r, id: r._id })))
+})
+
+app.get('/api/recetas/:producto_id', auth, async (req, res) => {
+  const receta = await db.recetas.findOne({ producto_id: req.params.producto_id })
+  res.json(receta ? { ...receta, id: receta._id } : null)
+})
+
+app.post('/api/recetas', auth, adminOnly, async (req, res) => {
+  const { producto_id, producto_nombre, ingredientes } = req.body
+  // Upsert: si ya existe receta para ese producto, actualizar
+  const existe = await db.recetas.findOne({ producto_id })
+  if (existe) {
+    await db.recetas.update({ producto_id }, { $set: { producto_nombre, ingredientes, actualizado_en: now() } })
+    res.json({ id: existe._id })
+  } else {
+    const doc = await db.recetas.insert({ producto_id, producto_nombre, ingredientes, creado_en: now() })
+    res.json({ id: doc._id })
+  }
+})
+
+app.delete('/api/recetas/:producto_id', auth, adminOnly, async (req, res) => {
+  await db.recetas.remove({ producto_id: req.params.producto_id }, {})
+  res.json({ ok: true })
+})
+
+
 app.get('/api/ventas', auth, async (req, res) => {
   const { desde, hasta, limit = 100 } = req.query
   let query = { estado: { $ne: null } }
@@ -146,7 +210,16 @@ app.post('/api/ventas', auth, async (req, res) => {
     })
     for (const item of items) {
       await db.ventaItems.insert({ venta_id: venta._id, ...item, subtotal: item.precio_unitario * item.cantidad })
+      // Descontar stock del producto
       await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -item.cantidad } })
+      // Descontar insumos de la receta si existe
+      const receta = await db.recetas.findOne({ producto_id: item.producto_id })
+      if (receta?.ingredientes?.length) {
+        for (const ing of receta.ingredientes) {
+          const descuento_insumo = ing.cantidad * item.cantidad
+          await db.insumos.update({ _id: ing.insumo_id }, { $inc: { stock: -descuento_insumo } })
+        }
+      }
     }
     await db.movimientos.insert({ tipo: 'ingreso', concepto: `Venta ${folio}`, monto: total, usuario_id: req.user.id, usuario: req.user.nombre, referencia_id: venta._id, creado_en: now() })
     res.json({ id: venta._id, folio, total, cambio })
@@ -161,6 +234,13 @@ app.patch('/api/ventas/:id/cancelar', auth, adminOnly, async (req, res) => {
   const items = await db.ventaItems.find({ venta_id: req.params.id })
   for (const item of items) {
     await db.productos.update({ _id: item.producto_id }, { $inc: { stock: item.cantidad } })
+    // Restaurar insumos
+    const receta = await db.recetas.findOne({ producto_id: item.producto_id })
+    if (receta?.ingredientes?.length) {
+      for (const ing of receta.ingredientes) {
+        await db.insumos.update({ _id: ing.insumo_id }, { $inc: { stock: ing.cantidad * item.cantidad } })
+      }
+    }
   }
   await db.movimientos.insert({ tipo: 'egreso', concepto: `Cancelación ${venta.folio}`, monto: venta.total, usuario_id: req.user.id, usuario: req.user.nombre, creado_en: now() })
   res.json({ ok: true })
@@ -266,16 +346,18 @@ app.get('/api/reportes/resumen', auth, async (req, res) => {
   }
   const porHora = Object.values(horaMap).sort((a, b) => a.hora.localeCompare(b.hora))
 
-  // Stock bajo
-  const stockBajo = await db.productos.find({ activo: true })
-  const stockBajoFiltrado = stockBajo.filter(p => p.stock <= p.stock_minimo).map(p => ({ ...p, id: p._id }))
+  // Stock bajo — productos e insumos
+  const todosProductos = await db.productos.find({ activo: true })
+  const stockBajoFiltrado = todosProductos.filter(p => p.stock <= p.stock_minimo).map(p => ({ ...p, id: p._id, tipo: 'producto' }))
+  const todosInsumos = await db.insumos.find({ activo: true })
+  const insumosBajos = todosInsumos.filter(i => i.stock <= i.stock_minimo).map(i => ({ ...i, id: i._id, tipo: 'insumo' }))
 
   res.json({
     ventas: { total_ventas, ingresos, ticket_promedio },
     porMetodo: Object.values(metodoMap),
     topProductos,
     porHora,
-    stockBajo: stockBajoFiltrado
+    stockBajo: [...stockBajoFiltrado, ...insumosBajos]
   })
 })
 
