@@ -4,12 +4,75 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { db } from './db.js'
 
-const app = express()
-const PORT = 3001
-const JWT_SECRET = 'enjoy_cheladas_secret_2024'
+// ── ENV ───────────────────────────────────────────────────────────────────────
+// Cargar .env si existe (sin depender de dotenv en producción)
+try {
+  const { readFileSync } = await import('fs')
+  const { fileURLToPath } = await import('url')
+  const { dirname, join } = await import('path')
+  const __dir = dirname(fileURLToPath(import.meta.url))
+  const envPath = join(__dir, '.env')
+  const envContent = readFileSync(envPath, 'utf8')
+  for (const line of envContent.split('\n')) {
+    const [key, ...vals] = line.split('=')
+    if (key && !key.startsWith('#') && vals.length) {
+      process.env[key.trim()] = vals.join('=').trim()
+    }
+  }
+} catch { /* .env opcional */ }
 
-app.use(cors())
-app.use(express.json())
+const app = express()
+const PORT = process.env.PORT || 3001
+const JWT_SECRET = process.env.JWT_SECRET || 'enjoy_cheladas_dev_secret_change_in_production'
+
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  JWT_SECRET no definido en .env — usando secreto de desarrollo. NO usar en producción.')
+}
+
+// ── SEGURIDAD ─────────────────────────────────────────────────────────────────
+// Eliminar header X-Powered-By
+app.disable('x-powered-by')
+
+// Headers de seguridad mínimos sin helmet
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  next()
+})
+
+// CORS: solo orígenes permitidos
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4173').split(',')
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true)
+    cb(new Error('CORS bloqueado: origen no permitido'))
+  },
+  credentials: true
+}))
+
+app.use(express.json({ limit: '1mb' }))
+
+// ── RATE LIMITING (sin dependencias externas) ─────────────────────────────────
+const loginAttempts = new Map()
+const rateLimit = (max, windowMs) => (req, res, next) => {
+  const key = req.ip || 'unknown'
+  const now = Date.now()
+  const entry = loginAttempts.get(key) || { count: 0, reset: now + windowMs }
+  if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs }
+  entry.count++
+  loginAttempts.set(key, entry)
+  if (entry.count > max) {
+    return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos.' })
+  }
+  next()
+}
+// Limpiar entradas viejas cada 10 minutos
+setInterval(() => {
+  const now = Date.now()
+  for (const [k, v] of loginAttempts) { if (now > v.reset) loginAttempts.delete(k) }
+}, 10 * 60 * 1000)
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const now = () => new Date().toISOString()
@@ -35,15 +98,16 @@ const adminOnly = (req, res, next) => {
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', rateLimit(10, 5 * 60 * 1000), async (req, res) => {
   try {
     const { usuario, password } = req.body
-    const user = await db.usuarios.findOne({ usuario, activo: true })
-    if (!user || !bcrypt.compareSync(password, user.password))
+    if (!usuario || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' })
+    const user = await db.usuarios.findOne({ usuario: String(usuario).trim(), activo: true })
+    if (!user || !bcrypt.compareSync(String(password), user.password))
       return res.status(401).json({ error: 'Credenciales incorrectas' })
     const token = jwt.sign({ id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol }, JWT_SECRET, { expiresIn: '12h' })
     res.json({ token, user: { id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol } })
-  } catch (e) { res.status(500).json({ error: e.message }) }
+  } catch (e) { res.status(500).json({ error: 'Error interno del servidor' }) }
 })
 
 // ── USUARIOS ─────────────────────────────────────────────────────────────────
@@ -54,12 +118,14 @@ app.get('/api/usuarios', auth, adminOnly, async (req, res) => {
 
 app.post('/api/usuarios', auth, adminOnly, async (req, res) => {
   const { nombre, usuario, password, rol } = req.body
-  if (!nombre || !usuario || !password) return res.status(400).json({ error: 'Faltan campos' })
+  if (!nombre?.trim() || !usuario?.trim() || !password) return res.status(400).json({ error: 'Faltan campos requeridos' })
+  if (password.length < 6) return res.status(400).json({ error: 'Contraseña mínima 6 caracteres' })
+  if (!['admin', 'cajero'].includes(rol || 'cajero')) return res.status(400).json({ error: 'Rol inválido' })
   try {
     const hash = bcrypt.hashSync(password, 10)
-    const doc = await db.usuarios.insert({ nombre, usuario, password: hash, rol: rol || 'cajero', activo: true, creado_en: now() })
-    res.json({ id: doc._id, nombre, usuario, rol: rol || 'cajero' })
-  } catch { res.status(400).json({ error: 'Usuario ya existe' }) }
+    const doc = await db.usuarios.insert({ nombre: nombre.trim(), usuario: usuario.trim().toLowerCase(), password: hash, rol: rol || 'cajero', activo: true, creado_en: now() })
+    res.json({ id: doc._id, nombre: nombre.trim(), usuario: usuario.trim().toLowerCase(), rol: rol || 'cajero' })
+  } catch { res.status(400).json({ error: 'El nombre de usuario ya existe' }) }
 })
 
 app.put('/api/usuarios/:id', auth, adminOnly, async (req, res) => {
@@ -84,7 +150,9 @@ app.get('/api/productos', auth, async (req, res) => {
 
 app.post('/api/productos', auth, adminOnly, async (req, res) => {
   const { nombre, categoria, precio, costo, stock, stock_minimo, unidad } = req.body
-  const doc = await db.productos.insert({ nombre, categoria, precio: +precio, costo: +(costo||0), stock: +(stock||0), stock_minimo: +(stock_minimo||5), unidad: unidad||'unidad', activo: true, creado_en: now() })
+  if (!nombre?.trim() || !categoria?.trim()) return res.status(400).json({ error: 'Nombre y categoría requeridos' })
+  if (isNaN(+precio) || +precio <= 0) return res.status(400).json({ error: 'Precio debe ser mayor a 0' })
+  const doc = await db.productos.insert({ nombre: nombre.trim(), categoria: categoria.trim(), precio: +precio, costo: +(costo||0), stock: +(stock||0), stock_minimo: +(stock_minimo||5), unidad: unidad||'unidad', activo: true, creado_en: now() })
   res.json({ id: doc._id })
 })
 
@@ -325,16 +393,25 @@ app.get('/api/reportes/resumen', auth, async (req, res) => {
     metodoMap[v.metodo_pago].monto += v.total
   }
 
-  // Top productos
+  // Top productos — incluye datos de costo para calcular margen
   const ventaIds = ventasFiltradas.map(v => v._id)
   const itemsFiltrados = ventaIds.length > 0 ? await db.ventaItems.find({ venta_id: { $in: ventaIds } }) : []
   const prodMap = {}
   for (const i of itemsFiltrados) {
-    if (!prodMap[i.nombre_producto]) prodMap[i.nombre_producto] = { nombre_producto: i.nombre_producto, cantidad: 0, total: 0 }
+    if (!prodMap[i.nombre_producto]) prodMap[i.nombre_producto] = { nombre_producto: i.nombre_producto, cantidad: 0, total: 0, costo_total: 0 }
     prodMap[i.nombre_producto].cantidad += i.cantidad
     prodMap[i.nombre_producto].total += i.subtotal
+    // Costo del producto para calcular margen
+    const prod = await db.productos.findOne({ nombre: i.nombre_producto })
+    if (prod) prodMap[i.nombre_producto].costo_total += (prod.costo || 0) * i.cantidad
   }
-  const topProductos = Object.values(prodMap).sort((a, b) => b.cantidad - a.cantidad).slice(0, 10)
+  const topProductos = Object.values(prodMap)
+    .map(p => ({ ...p, margen: p.total > 0 ? ((p.total - p.costo_total) / p.total * 100).toFixed(1) : '0' }))
+    .sort((a, b) => b.cantidad - a.cantidad).slice(0, 10)
+
+  // Ganancia bruta total
+  const ganancia_bruta = topProductos.reduce((s, p) => s + (p.total - p.costo_total), 0)
+  const margen_bruto_pct = ingresos > 0 ? ((ganancia_bruta / ingresos) * 100).toFixed(1) : 0
 
   // Por hora
   const horaMap = {}
@@ -353,7 +430,7 @@ app.get('/api/reportes/resumen', auth, async (req, res) => {
   const insumosBajos = todosInsumos.filter(i => i.stock <= i.stock_minimo).map(i => ({ ...i, id: i._id, tipo: 'insumo' }))
 
   res.json({
-    ventas: { total_ventas, ingresos, ticket_promedio },
+    ventas: { total_ventas, ingresos, ticket_promedio, ganancia_bruta, margen_bruto_pct: +margen_bruto_pct },
     porMetodo: Object.values(metodoMap),
     topProductos,
     porHora,

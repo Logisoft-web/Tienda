@@ -3,12 +3,12 @@ import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import {
   ShoppingCart, TrendingUp, Package, AlertTriangle,
-  DollarSign, Clock, Monitor, User, RefreshCw
+  DollarSign, Clock, Monitor, RefreshCw, BarChart2
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-function StatCard({ icon: Icon, label, value, sub, color }) {
+function StatCard({ icon: Icon, label, value, sub, color, trend }) {
   return (
     <div className="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-gray-100 fade-in">
       <div className="flex items-start justify-between">
@@ -21,6 +21,12 @@ function StatCard({ icon: Icon, label, value, sub, color }) {
           <Icon size={18} className="text-white" />
         </div>
       </div>
+      {trend !== undefined && (
+        <div className={`mt-3 text-xs font-medium flex items-center gap-1 ${trend >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+          <span>{trend >= 0 ? '↑' : '↓'}</span>
+          <span>{Math.abs(trend)}% margen bruto</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -134,16 +140,23 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          {/* Stats — ahora con 6 métricas incluyendo margen bruto (SaaS Metrics) */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
             <StatCard icon={ShoppingCart} label="Ventas hoy" value={data?.ventas?.total_ventas || 0}
               sub="transacciones" color="bg-primary" />
-            <StatCard icon={DollarSign} label="Ingresos hoy" value={fmt(data?.ventas?.ingresos)}
+            <StatCard icon={DollarSign} label="Ingresos hoy" value={`$${fmt(data?.ventas?.ingresos)}`}
               sub="total cobrado" color="bg-green-500" />
-            <StatCard icon={TrendingUp} label="Ticket promedio" value={fmt(data?.ventas?.ticket_promedio)}
+            <StatCard icon={TrendingUp} label="Ticket promedio" value={`$${fmt(data?.ventas?.ticket_promedio)}`}
               sub="por venta" color="bg-blue-500" />
-            <StatCard icon={AlertTriangle} label="Stock bajo" value={data?.stockBajo?.length || 0}
-              sub="productos" color="bg-orange-500" />
+            {isAdmin && (
+              <>
+                <StatCard icon={BarChart2} label="Ganancia bruta" value={`$${fmt(data?.ventas?.ganancia_bruta)}`}
+                  sub="después de costos" color="bg-purple-500"
+                  trend={data?.ventas?.margen_bruto_pct} />
+                <StatCard icon={TrendingUp} label="Margen bruto" value={`${data?.ventas?.margen_bruto_pct || 0}%`}
+                  sub="sobre ingresos" color="bg-indigo-500" />
+              </>
+            )}
           </div>
 
           {/* Layout principal */}

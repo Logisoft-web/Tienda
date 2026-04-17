@@ -83,19 +83,20 @@ export default function Reportes() {
         </div>
       ) : data ? (
         <>
-          {/* KPIs */}
+          {/* KPIs — incluye margen bruto para admin */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
               { icon: ShoppingCart, label: 'Total ventas', value: data.ventas?.total_ventas || 0, color: 'bg-primary' },
-              { icon: DollarSign, label: 'Ingresos', value: fmt(data.ventas?.ingresos), color: 'bg-green-500' },
-              { icon: TrendingUp, label: 'Ticket promedio', value: fmt(data.ventas?.ticket_promedio), color: 'bg-blue-500' },
-              { icon: BarChart2, label: 'Stock bajo', value: data.stockBajo?.length || 0, color: 'bg-orange-500' },
-            ].map(({ icon: Icon, label, value, color }) => (
+              { icon: DollarSign, label: 'Ingresos', value: `$${fmt(data.ventas?.ingresos)}`, color: 'bg-green-500' },
+              { icon: TrendingUp, label: 'Ticket promedio', value: `$${fmt(data.ventas?.ticket_promedio)}`, color: 'bg-blue-500' },
+              { icon: BarChart2, label: 'Margen bruto', value: `${data.ventas?.margen_bruto_pct ?? 0}%`, sub: `$${fmt(data.ventas?.ganancia_bruta)} ganancia`, color: 'bg-purple-500' },
+            ].map(({ icon: Icon, label, value, sub, color }) => (
               <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 fade-in">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs text-gray-500">{label}</p>
                     <p className="text-2xl font-display font-bold text-dark mt-1">{value}</p>
+                    {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
                   </div>
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
                     <Icon size={18} className="text-white" />
@@ -122,8 +123,11 @@ export default function Reportes() {
                         <div className="w-full bg-gray-100 rounded-full h-2">
                           <div className="h-2 rounded-full" style={{ width: `${(p.cantidad / maxCantidad) * 100}%`, background: 'linear-gradient(90deg, #FF6B35, #FDC830)' }} />
                         </div>
+                        {p.margen && (
+                          <p className="text-xs text-purple-500 mt-0.5">Margen: {p.margen}%</p>
+                        )}
                       </div>
-                      <p className="text-sm font-bold text-dark w-20 text-right shrink-0">{fmt(p.total)}</p>
+                      <p className="text-sm font-bold text-dark w-20 text-right shrink-0">${fmt(p.total)}</p>
                     </div>
                   ))}
                 </div>

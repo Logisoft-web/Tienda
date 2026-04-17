@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { api } from '../services/api'
 import { Plus, Minus, Trash2, ShoppingCart, Search, CreditCard, Banknote, Smartphone, CheckCircle, X, Flame, Star, AlertTriangle } from 'lucide-react'
 
@@ -171,8 +171,13 @@ export default function Ventas() {
                   <p className="text-sm font-semibold text-dark leading-tight">{prod.nombre}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{prod.categoria}</p>
 
-                  {/* Precio con charm pricing visual */}
-                  <p className="text-primary font-bold text-base mt-2">${prod.precio.toFixed(2)}</p>
+                  {/* Precio con charm pricing + Anchoring si hay precio sugerido */}
+                  <div className="flex items-baseline gap-1.5 mt-2">
+                    <p className="text-primary font-bold text-base">${prod.precio.toFixed(2)}</p>
+                    {prod.precio_sugerido && prod.precio_sugerido > prod.precio && (
+                      <p className="text-gray-300 text-xs line-through">${prod.precio_sugerido.toFixed(2)}</p>
+                    )}
+                  </div>
 
                   {/* Stock bajo — Loss Aversion framing */}
                   {stockBajo && (
@@ -329,13 +334,16 @@ export default function Ventas() {
             </div>
           )}
 
-          {/* CTA — BJ Fogg: prompt claro en el momento correcto */}
+          {/* CTA — BJ Fogg + Loss Aversion framing */}
           <button onClick={procesarVenta}
             disabled={!carrito.length || procesando}
             className="w-full py-3.5 rounded-xl font-bold text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
             style={{ background: carrito.length ? 'linear-gradient(135deg, #FF6B35, #F7931E)' : '#e5e7eb' }}>
-            {procesando ? '⏳ Procesando...' : carrito.length ? `Cobrar $${total.toFixed(2)} →` : 'Agrega productos'}
+            {procesando ? '⏳ Procesando...' : carrito.length ? `✓ Cobrar $${total.toFixed(2)}` : 'Selecciona productos'}
           </button>
+          {carrito.length > 0 && metodo === 'efectivo' && !montoRecibido && (
+            <p className="text-center text-xs text-gray-400 -mt-1">Ingresa el monto recibido para continuar</p>
+          )}
         </div>
       </div>
 

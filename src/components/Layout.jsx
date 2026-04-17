@@ -2,9 +2,10 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, ShoppingCart, Package, DollarSign,
-  BarChart2, Users, LogOut, Menu, X
+  BarChart2, Users, LogOut, Menu, X, RefreshCw, Wifi, WifiOff
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -20,6 +21,22 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+
+  // PWA: Update prompt — anti-patrón "Silent Update" resuelto
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker
+  } = useRegisterSW()
+
+  // Detección offline/online
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline) }
+  }, [])
 
   // Cerrar menú al cambiar de ruta
   useEffect(() => { setOpen(false) }, [location.pathname])
@@ -29,6 +46,33 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+
+      {/* ── Banner: actualización disponible (PWA) ──────────────────── */}
+      {needRefresh && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-blue-600 text-white px-4 py-2.5 flex items-center justify-between text-sm shadow-lg">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={15} />
+            <span>Nueva versión disponible</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => updateServiceWorker(true)}
+              className="bg-white text-blue-600 font-semibold px-3 py-1 rounded-lg text-xs hover:bg-blue-50 transition-colors">
+              Actualizar
+            </button>
+            <button onClick={() => setNeedRefresh(false)} className="text-white/70 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Banner: sin conexión ─────────────────────────────────────── */}
+      {!isOnline && (
+        <div className="fixed top-0 left-0 right-0 z-[99] bg-orange-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm shadow-lg">
+          <WifiOff size={15} />
+          <span>Sin conexión — trabajando en modo offline</span>
+        </div>
+      )}
 
       {/* ── Sidebar desktop (≥1024px) ─────────────────────────────── */}
       <aside className="hidden lg:flex flex-col w-60 bg-dark text-white shadow-xl shrink-0">
@@ -151,7 +195,7 @@ export default function Layout() {
       )}
 
       {/* ── Contenido principal ───────────────────────────────────── */}
-      <main className="flex-1 overflow-auto md:pt-0 pt-14">
+      <main className={`flex-1 overflow-auto md:pt-0 pt-14 ${needRefresh || !isOnline ? 'mt-10' : ''}`}>
         <Outlet />
       </main>
     </div>
