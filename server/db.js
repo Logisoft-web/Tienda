@@ -15,6 +15,10 @@ export const db = {
   caja:        Datastore.create({ filename: join(dir, 'caja.db'),        autoload: true }),
   insumos:     Datastore.create({ filename: join(dir, 'insumos.db'),     autoload: true }),
   recetas:     Datastore.create({ filename: join(dir, 'recetas.db'),     autoload: true }),
+  config:      Datastore.create({ filename: join(dir, 'config.db'),      autoload: true }),
+  clientes:    Datastore.create({ filename: join(dir, 'clientes.db'),    autoload: true }),
+  combos:      Datastore.create({ filename: join(dir, 'combos.db'),      autoload: true }),
+  secciones:   Datastore.create({ filename: join(dir, 'secciones.db'),   autoload: true }),
 }
 
 // Índices únicos
@@ -47,21 +51,32 @@ async function seed() {
 
     // Insumos de ejemplo
     const insumosSeed = [
-      { nombre: 'Vaso Grande (32oz)',   unidad: 'pieza',  stock: 500, stock_minimo: 50, activo: true },
-      { nombre: 'Vaso Mediano (16oz)',  unidad: 'pieza',  stock: 500, stock_minimo: 50, activo: true },
-      { nombre: 'Vaso Pequeño (12oz)', unidad: 'pieza',  stock: 300, stock_minimo: 30, activo: true },
-      { nombre: 'Pitillo grueso',       unidad: 'pieza',  stock: 600, stock_minimo: 60, activo: true },
-      { nombre: 'Pitillo delgado',      unidad: 'pieza',  stock: 600, stock_minimo: 60, activo: true },
-      { nombre: 'Cerveza 330ml',        unidad: 'botella',stock: 200, stock_minimo: 24, activo: true },
-      { nombre: 'Limón',               unidad: 'unidad', stock: 300, stock_minimo: 30, activo: true },
-      { nombre: 'Sal de mar',          unidad: 'gramo',  stock: 2000,stock_minimo: 200, activo: true },
-      { nombre: 'Chamoy',              unidad: 'ml',     stock: 1000,stock_minimo: 100, activo: true },
-      { nombre: 'Chile en polvo',      unidad: 'gramo',  stock: 500, stock_minimo: 50,  activo: true },
-      { nombre: 'Mango en cubos',      unidad: 'gramo',  stock: 1000,stock_minimo: 100, activo: true },
-      { nombre: 'Tamarindo líquido',   unidad: 'ml',     stock: 800, stock_minimo: 80,  activo: true },
-      { nombre: 'Pepino en rodajas',   unidad: 'gramo',  stock: 500, stock_minimo: 50,  activo: true },
-      { nombre: 'Bolsa para llevar',   unidad: 'pieza',  stock: 200, stock_minimo: 20,  activo: true },
-      { nombre: 'Servilleta',          unidad: 'pieza',  stock: 1000,stock_minimo: 100, activo: true },
+      // Vasos por tamaño
+      { nombre: 'Vaso 20oz',            unidad: 'pieza',   stock: 500, stock_minimo: 50, activo: true },
+      { nombre: 'Vaso 32oz',            unidad: 'pieza',   stock: 500, stock_minimo: 50, activo: true },
+      { nombre: 'Vaso 12oz',            unidad: 'pieza',   stock: 300, stock_minimo: 30, activo: true },
+      { nombre: 'Vaso desechable 16oz', unidad: 'pieza',   stock: 300, stock_minimo: 30, activo: true },
+      // Pitillos
+      { nombre: 'Pitillo grueso',       unidad: 'pieza',   stock: 600, stock_minimo: 60, activo: true },
+      { nombre: 'Pitillo delgado',      unidad: 'pieza',   stock: 600, stock_minimo: 60, activo: true },
+      // Bebidas base
+      { nombre: 'Cerveza 330ml',        unidad: 'botella', stock: 200, stock_minimo: 24, activo: true },
+      { nombre: 'Cerveza 710ml',        unidad: 'botella', stock: 100, stock_minimo: 12, activo: true },
+      // Frutas
+      { nombre: 'Mango en cubos',       unidad: 'gramo',   stock: 2000, stock_minimo: 300, activo: true },
+      { nombre: 'Pepino en rodajas',    unidad: 'gramo',   stock: 1000, stock_minimo: 150, activo: true },
+      { nombre: 'Limón',               unidad: 'unidad',  stock: 300,  stock_minimo: 50,  activo: true },
+      { nombre: 'Sandía en cubos',      unidad: 'gramo',   stock: 1000, stock_minimo: 200, activo: true },
+      { nombre: 'Jícama en tiras',      unidad: 'gramo',   stock: 500,  stock_minimo: 100, activo: true },
+      // Salsas y condimentos
+      { nombre: 'Chamoy',              unidad: 'ml',      stock: 1500, stock_minimo: 200, activo: true },
+      { nombre: 'Tamarindo líquido',   unidad: 'ml',      stock: 1000, stock_minimo: 150, activo: true },
+      { nombre: 'Chile en polvo',      unidad: 'gramo',   stock: 500,  stock_minimo: 50,  activo: true },
+      { nombre: 'Sal de mar',          unidad: 'gramo',   stock: 1000, stock_minimo: 100, activo: true },
+      { nombre: 'Miguelito (polvo)',   unidad: 'gramo',   stock: 300,  stock_minimo: 50,  activo: true },
+      // Otros
+      { nombre: 'Servilleta',          unidad: 'pieza',   stock: 1000, stock_minimo: 100, activo: true },
+      { nombre: 'Bolsa para llevar',   unidad: 'pieza',   stock: 200,  stock_minimo: 20,  activo: true },
     ]
     const insumosInsertados = {}
     for (const ins of insumosSeed) {

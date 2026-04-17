@@ -8,6 +8,8 @@ import Inventario from './pages/Inventario'
 import Caja from './pages/Caja'
 import Reportes from './pages/Reportes'
 import Usuarios from './pages/Usuarios'
+import Configuracion from './pages/Configuracion'
+import Clientes from './pages/Clientes'
 
 function PrivateRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuth()
@@ -30,6 +32,8 @@ export default function App() {
             <Route path="caja" element={<Caja />} />
             <Route path="reportes" element={<PrivateRoute adminOnly><Reportes /></PrivateRoute>} />
             <Route path="usuarios" element={<PrivateRoute adminOnly><Usuarios /></PrivateRoute>} />
+            <Route path="configuracion" element={<PrivateRoute adminOnly><Configuracion /></PrivateRoute>} />
+            <Route path="clientes" element={<Clientes />} />
           </Route>
         </Routes>
       </BrowserRouter>

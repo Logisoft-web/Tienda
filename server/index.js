@@ -149,16 +149,37 @@ app.get('/api/productos', auth, async (req, res) => {
 })
 
 app.post('/api/productos', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad } = req.body
-  if (!nombre?.trim() || !categoria?.trim()) return res.status(400).json({ error: 'Nombre y categoría requeridos' })
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
   if (isNaN(+precio) || +precio <= 0) return res.status(400).json({ error: 'Precio debe ser mayor a 0' })
-  const doc = await db.productos.insert({ nombre: nombre.trim(), categoria: categoria.trim(), precio: +precio, costo: +(costo||0), stock: +(stock||0), stock_minimo: +(stock_minimo||5), unidad: unidad||'unidad', activo: true, creado_en: now() })
+  const doc = await db.productos.insert({
+    nombre: nombre.trim(),
+    categoria: (categoria || '').trim(),
+    precio: +precio,
+    costo: +(costo||0),
+    stock: +(stock||0),
+    stock_minimo: +(stock_minimo||5),
+    unidad: unidad||'unidad',
+    codigo: (codigo||'').trim(),
+    codigo_barras: (codigo_barras||'').trim(),
+    proveedor: (proveedor||'').trim(),
+    iva_pct: +(iva_pct||0),
+    descripcion: (descripcion||'').trim(),
+    imagen: imagen||null,
+    activo: true,
+    creado_en: now()
+  })
   res.json({ id: doc._id })
 })
 
 app.put('/api/productos/:id', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo } = req.body
-  await db.productos.update({ _id: req.params.id }, { $set: { nombre, categoria, precio: +precio, costo: +costo, stock: +stock, stock_minimo: +stock_minimo, unidad, activo: activo ?? true } })
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen } = req.body
+  await db.productos.update({ _id: req.params.id }, { $set: {
+    nombre, categoria, precio: +precio, costo: +costo, stock: +stock, stock_minimo: +stock_minimo, unidad,
+    codigo: codigo||'', codigo_barras: codigo_barras||'', proveedor: proveedor||'',
+    iva_pct: +(iva_pct||0), descripcion: descripcion||'', imagen: imagen||null,
+    activo: activo ?? true
+  }})
   res.json({ ok: true })
 })
 
@@ -263,29 +284,69 @@ app.get('/api/ventas/:id', auth, async (req, res) => {
 })
 
 app.post('/api/ventas', auth, async (req, res) => {
-  const { items, metodo_pago, monto_recibido, descuento = 0, notas } = req.body
+  const { items, metodo_pago, monto_recibido, descuento = 0, notas,
+          cliente_id, pago_mixto, mixto_efectivo, mixto_metodo2, mixto_monto2 } = req.body
   if (!items?.length) return res.status(400).json({ error: 'Sin productos' })
-  const subtotal = items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
+
+  // Verificar que hay caja abierta para este cajero
+  const cajaAbierta = await db.caja.findOne({ estado: 'abierta', usuario_id: req.user.id })
+  if (!cajaAbierta) return res.status(403).json({ error: 'Debes abrir la caja antes de realizar ventas' })
+
+  // Calcular subtotal (productos normales + combos)
+  let subtotal = 0
+  for (const item of items) {
+    if (item.es_combo) {
+      subtotal += item.precio_unitario * item.cantidad
+    } else {
+      subtotal += item.precio_unitario * item.cantidad
+    }
+  }
   const total = subtotal - descuento
-  const cambio = metodo_pago === 'efectivo' ? (monto_recibido || 0) - total : 0
+  const cambio = metodo_pago === 'efectivo' && !pago_mixto ? (monto_recibido || 0) - total : 0
   const folio = genFolio()
+
+  // Nombre del cliente si aplica
+  let cliente_nombre = null
+  if (cliente_id) {
+    const cli = await db.clientes.findOne({ _id: cliente_id })
+    cliente_nombre = cli?.nombre || null
+  }
+
   try {
     const venta = await db.ventas.insert({
       folio, usuario_id: req.user.id, cajero: req.user.nombre,
       subtotal, descuento, total, metodo_pago,
       monto_recibido: monto_recibido || total, cambio,
+      pago_mixto: pago_mixto || false,
+      mixto_efectivo: mixto_efectivo || 0,
+      mixto_metodo2: mixto_metodo2 || null,
+      mixto_monto2: mixto_monto2 || 0,
+      cliente_id: cliente_id || null,
+      cliente_nombre,
+      iva_pct: req.body.iva_pct ?? 0,
+      iva_valor: req.body.iva_valor ?? 0,
+      base_gravable: req.body.base_gravable ?? total,
       estado: 'completada', notas: notas || null, creado_en: now()
     })
     for (const item of items) {
       await db.ventaItems.insert({ venta_id: venta._id, ...item, subtotal: item.precio_unitario * item.cantidad })
-      // Descontar stock del producto
-      await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -item.cantidad } })
-      // Descontar insumos de la receta si existe
-      const receta = await db.recetas.findOne({ producto_id: item.producto_id })
-      if (receta?.ingredientes?.length) {
-        for (const ing of receta.ingredientes) {
-          const descuento_insumo = ing.cantidad * item.cantidad
-          await db.insumos.update({ _id: ing.insumo_id }, { $inc: { stock: -descuento_insumo } })
+      if (!item.es_combo) {
+        // Descontar stock del producto
+        await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -item.cantidad } })
+        // Descontar insumos de la receta si existe
+        const receta = await db.recetas.findOne({ producto_id: item.producto_id })
+        if (receta?.ingredientes?.length) {
+          for (const ing of receta.ingredientes) {
+            await db.insumos.update({ _id: ing.insumo_id }, { $inc: { stock: -(ing.cantidad * item.cantidad) } })
+          }
+        }
+      } else {
+        // Combo: descontar cada producto del combo
+        const combo = await db.combos.findOne({ _id: item.combo_id })
+        if (combo?.items?.length) {
+          for (const ci of combo.items) {
+            await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -(ci.cantidad * item.cantidad) } })
+          }
         }
       }
     }
@@ -317,7 +378,49 @@ app.patch('/api/ventas/:id/cancelar', auth, adminOnly, async (req, res) => {
 // ── CAJA ──────────────────────────────────────────────────────────────────────
 app.get('/api/caja/estado', auth, async (req, res) => {
   const caja = await db.caja.findOne({ estado: 'abierta' })
-  res.json(caja ? { ...caja, id: caja._id } : null)
+  if (!caja) return res.json(null)
+
+  // Calcular efectivo real disponible en caja:
+  // monto_inicial + todo el efectivo recibido de clientes - cambios ya entregados - egresos manuales
+  const hoy = new Date().toISOString().slice(0, 10)
+  const ventasEfectivo = await db.ventas.find({
+    estado: 'completada',
+    metodo_pago: 'efectivo'
+  })
+  const ventasHoy = ventasEfectivo.filter(v => v.creado_en.slice(0, 10) === hoy)
+
+  // Lo que entró físicamente a la caja = lo que pagó cada cliente (monto_recibido)
+  const totalRecibido = ventasHoy.reduce((s, v) => s + (v.monto_recibido || v.total), 0)
+  // Lo que salió de la caja = cambios entregados
+  const totalCambios = ventasHoy.reduce((s, v) => s + (v.cambio || 0), 0)
+
+  // Movimientos manuales de caja del día
+  const movs = await db.movimientos.find({})
+  const movsHoy = movs.filter(m => m.creado_en?.slice(0, 10) === hoy)
+  const egresosManual = movsHoy.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0)
+  const ingresosManual = movsHoy.filter(m => m.tipo === 'ingreso_manual').reduce((s, m) => s + m.monto, 0)
+
+  // Efectivo físico en caja = apertura + entradas - salidas
+  const efectivo_disponible = caja.monto_inicial + totalRecibido - totalCambios - egresosManual + ingresosManual
+
+  // Ventas totales del día (todos los métodos de pago)
+  const todasVentasHoy = await db.ventas.find({ estado: 'completada' })
+  const ventasTotalesHoy = todasVentasHoy.filter(v => v.creado_en.slice(0, 10) === hoy)
+  const ingresos_ventas_hoy = ventasTotalesHoy.reduce((s, v) => s + v.total, 0)
+  const num_ventas_hoy = ventasTotalesHoy.length
+
+  res.json({
+    ...caja,
+    id: caja._id,
+    efectivo_disponible,
+    monto_inicial: caja.monto_inicial,
+    ventas_efectivo_hoy: totalRecibido,
+    cambios_hoy: totalCambios,
+    egresos_manual_hoy: egresosManual,
+    ingresos_manual_hoy: ingresosManual,
+    ingresos_ventas_hoy,
+    num_ventas_hoy
+  })
 })
 
 // Todas las cajas abiertas con info del usuario (para admin)
@@ -453,6 +556,291 @@ app.get('/api/reportes/ventas-csv', auth, adminOnly, async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename="ventas_${d}_${h}.csv"`)
   res.send('\uFEFF' + header + rows)
+})
+
+// ── REPORTE CONTABLE DIAN ─────────────────────────────────────────────────────
+app.get('/api/reportes/contable', auth, adminOnly, async (req, res) => {
+  const { desde, hasta, formato = 'json' } = req.query
+  const d = desde || todayStr()
+  const h = hasta || d
+
+  const ventas = await db.ventas.find({ estado: 'completada' })
+  const filtradas = ventas.filter(v => v.creado_en.slice(0, 10) >= d && v.creado_en.slice(0, 10) <= h)
+
+  // Para cada venta, obtener sus items
+  const ventasDetalle = await Promise.all(filtradas.map(async (v) => {
+    const items = await db.ventaItems.find({ venta_id: v._id })
+    return { ...v, items }
+  }))
+
+  // Totales globales
+  const totalBruto     = ventasDetalle.reduce((s, v) => s + v.total, 0)
+  const totalDescuentos = ventasDetalle.reduce((s, v) => s + (v.descuento || 0), 0)
+  const totalIva       = ventasDetalle.reduce((s, v) => s + (v.iva_valor || 0), 0)
+  const baseGravable   = totalBruto - totalIva
+  const numVentas      = ventasDetalle.length
+
+  // Por método de pago
+  const porMetodo = {}
+  for (const v of ventasDetalle) {
+    const m = v.metodo_pago || 'efectivo'
+    if (!porMetodo[m]) porMetodo[m] = { metodo: m, cantidad: 0, total: 0 }
+    porMetodo[m].cantidad++
+    porMetodo[m].total += v.total
+  }
+
+  // Detalle por producto (para libro de ventas)
+  const porProducto = {}
+  for (const v of ventasDetalle) {
+    for (const item of v.items || []) {
+      const key = item.nombre_producto
+      if (!porProducto[key]) porProducto[key] = { nombre: key, cantidad: 0, subtotal: 0, iva: 0 }
+      porProducto[key].cantidad += item.cantidad
+      porProducto[key].subtotal += item.subtotal || (item.precio_unitario * item.cantidad)
+      porProducto[key].iva += item.iva_valor || 0
+    }
+  }
+
+  if (formato === 'csv') {
+    // CSV con todo el detalle para el contador
+    let csv = '\uFEFF'
+
+    // Hoja 1: Encabezado del período
+    csv += `REPORTE CONTABLE - DOCUMENTO EQUIVALENTE POS\n`
+    csv += `Período,${d},${h}\n`
+    csv += `Total ventas,${numVentas}\n`
+    csv += `Base gravable,${baseGravable.toFixed(2)}\n`
+    csv += `IVA generado (19%),${totalIva.toFixed(2)}\n`
+    csv += `Total ingresos brutos,${totalBruto.toFixed(2)}\n`
+    csv += `Total descuentos,${totalDescuentos.toFixed(2)}\n\n`
+
+    // Hoja 2: Detalle de ventas
+    csv += `DETALLE DE VENTAS\n`
+    csv += `Folio,Fecha,Hora,Cajero,Cliente,NIT Cliente,Método Pago,Base Gravable,IVA 19%,Descuento,Total,Estado\n`
+    for (const v of ventasDetalle) {
+      const fecha = v.creado_en.slice(0, 10)
+      const hora  = v.creado_en.slice(11, 19)
+      const base  = v.base_gravable || (v.total - (v.iva_valor || 0))
+      const iva   = v.iva_valor || 0
+      csv += `${v.folio},${fecha},${hora},${v.cajero || ''},${v.cliente_nombre || 'CONSUMIDOR FINAL'},${v.cliente_nit || '222222222222'},${v.metodo_pago},${base.toFixed(2)},${iva.toFixed(2)},${(v.descuento||0).toFixed(2)},${v.total.toFixed(2)},${v.estado}\n`
+    }
+
+    csv += `\nDETALLE DE ITEMS VENDIDOS\n`
+    csv += `Folio Venta,Fecha,Producto,Cantidad,Precio Unitario,IVA%,Subtotal\n`
+    for (const v of ventasDetalle) {
+      for (const item of v.items || []) {
+        csv += `${v.folio},${v.creado_en.slice(0,10)},${item.nombre_producto},${item.cantidad},${item.precio_unitario},${item.iva_pct||0},${(item.subtotal||(item.precio_unitario*item.cantidad)).toFixed(2)}\n`
+      }
+    }
+
+    csv += `\nRESUMEN POR MÉTODO DE PAGO\n`
+    csv += `Método,Cantidad Ventas,Total\n`
+    for (const m of Object.values(porMetodo)) {
+      csv += `${m.metodo},${m.cantidad},${m.total.toFixed(2)}\n`
+    }
+
+    csv += `\nRESUMEN POR PRODUCTO\n`
+    csv += `Producto,Unidades Vendidas,Subtotal,IVA\n`
+    for (const p of Object.values(porProducto).sort((a,b) => b.subtotal - a.subtotal)) {
+      csv += `${p.nombre},${p.cantidad},${p.subtotal.toFixed(2)},${p.iva.toFixed(2)}\n`
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="reporte_contable_${d}_${h}.csv"`)
+    return res.send(csv)
+  }
+
+  res.json({
+    periodo: { desde: d, hasta: h },
+    resumen: { numVentas, totalBruto, totalDescuentos, totalIva, baseGravable },
+    porMetodo: Object.values(porMetodo),
+    porProducto: Object.values(porProducto).sort((a,b) => b.subtotal - a.subtotal),
+    ventas: ventasDetalle.map(v => ({
+      folio: v.folio, fecha: v.creado_en.slice(0,10), hora: v.creado_en.slice(11,19),
+      cajero: v.cajero, cliente: v.cliente_nombre || 'CONSUMIDOR FINAL',
+      nit_cliente: v.cliente_nit || '222222222222',
+      metodo_pago: v.metodo_pago,
+      base_gravable: v.base_gravable || (v.total - (v.iva_valor||0)),
+      iva_valor: v.iva_valor || 0,
+      descuento: v.descuento || 0,
+      total: v.total,
+      items: v.items
+    }))
+  })
+})
+
+// ── CLIENTES ──────────────────────────────────────────────────────────────────
+app.get('/api/clientes', auth, async (req, res) => {
+  const { q } = req.query
+  let rows = await db.clientes.find({ activo: true }).sort({ nombre: 1 })
+  if (q) rows = rows.filter(c => c.nombre.toLowerCase().includes(q.toLowerCase()) || (c.telefono||'').includes(q))
+  res.json(rows.map(c => ({ ...c, id: c._id })))
+})
+
+app.post('/api/clientes', auth, async (req, res) => {
+  const { nombre, telefono, email, notas } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+  const doc = await db.clientes.insert({ nombre: nombre.trim(), telefono: telefono||'', email: email||'', notas: notas||'', activo: true, creado_en: now() })
+  res.json({ id: doc._id, ...doc })
+})
+
+app.put('/api/clientes/:id', auth, async (req, res) => {
+  const { nombre, telefono, email, notas } = req.body
+  await db.clientes.update({ _id: req.params.id }, { $set: { nombre, telefono, email, notas } })
+  res.json({ ok: true })
+})
+
+app.delete('/api/clientes/:id', auth, adminOnly, async (req, res) => {
+  await db.clientes.update({ _id: req.params.id }, { $set: { activo: false } })
+  res.json({ ok: true })
+})
+
+// ── CATEGORÍAS DE PRODUCTOS ───────────────────────────────────────────────────
+app.get('/api/categorias', auth, async (req, res) => {
+  const rows = await db.productos.find({ activo: true })
+  const cats = [...new Set(rows.map(p => p.categoria).filter(Boolean))].sort()
+  res.json(cats)
+})
+
+// ── PROVEEDORES ───────────────────────────────────────────────────────────────
+app.get('/api/proveedores', auth, async (req, res) => {
+  const rows = await db.productos.find({ activo: true })
+  const provs = [...new Set(rows.map(p => p.proveedor).filter(Boolean))].sort()
+  res.json(provs)
+})
+
+// ── SECCIONES (categorías visuales del POS) ───────────────────────────────────
+app.get('/api/secciones', auth, async (req, res) => {
+  const rows = await db.secciones.find({ activo: true }).sort({ orden: 1 })
+  res.json(rows.map(s => ({ ...s, id: s._id })))
+})
+
+app.post('/api/secciones', auth, adminOnly, async (req, res) => {
+  const { nombre, emoji, orden } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+  const doc = await db.secciones.insert({ nombre: nombre.trim(), emoji: emoji||'🍺', orden: +(orden||0), activo: true, creado_en: now() })
+  res.json({ id: doc._id, ...doc })
+})
+
+app.put('/api/secciones/:id', auth, adminOnly, async (req, res) => {
+  const { nombre, emoji, orden } = req.body
+  await db.secciones.update({ _id: req.params.id }, { $set: { nombre, emoji, orden: +(orden||0) } })
+  res.json({ ok: true })
+})
+
+app.delete('/api/secciones/:id', auth, adminOnly, async (req, res) => {
+  await db.secciones.update({ _id: req.params.id }, { $set: { activo: false } })
+  res.json({ ok: true })
+})
+
+// Productos de una sección (por categoría)
+app.get('/api/secciones/:id/productos', auth, async (req, res) => {
+  const seccion = await db.secciones.findOne({ _id: req.params.id })
+  if (!seccion) return res.status(404).json({ error: 'No encontrada' })
+  const prods = await db.productos.find({ activo: true, categoria: seccion.nombre }).sort({ nombre: 1 })
+  res.json(prods.map(p => ({ ...p, id: p._id })))
+})
+
+// ── COMBOS ────────────────────────────────────────────────────────────────────
+app.get('/api/combos', auth, async (req, res) => {
+  const rows = await db.combos.find({ activo: true }).sort({ nombre: 1 })
+  res.json(rows.map(c => ({ ...c, id: c._id })))
+})
+
+app.post('/api/combos', auth, adminOnly, async (req, res) => {
+  const { nombre, descripcion, precio, items, icono } = req.body
+  if (!nombre?.trim() || !precio) return res.status(400).json({ error: 'Nombre y precio requeridos' })
+  if (!items?.length) return res.status(400).json({ error: 'El combo debe tener al menos un producto' })
+  const doc = await db.combos.insert({ nombre: nombre.trim(), descripcion: descripcion||'', precio: +precio, items, icono: icono||'🎁', activo: true, creado_en: now() })
+  res.json({ id: doc._id })
+})
+
+app.put('/api/combos/:id', auth, adminOnly, async (req, res) => {
+  const { nombre, descripcion, precio, items, activo, icono } = req.body
+  await db.combos.update({ _id: req.params.id }, { $set: { nombre, descripcion, precio: +precio, items, icono: icono||'🎁', activo: activo ?? true } })
+  res.json({ ok: true })
+})
+
+app.delete('/api/combos/:id', auth, adminOnly, async (req, res) => {
+  await db.combos.update({ _id: req.params.id }, { $set: { activo: false } })
+  res.json({ ok: true })
+})
+
+// ── PRODUCTOS — búsqueda por código de barras ─────────────────────────────────
+app.get('/api/productos/buscar/:codigo', auth, async (req, res) => {
+  const prod = await db.productos.findOne({ codigo_barras: req.params.codigo, activo: true })
+  if (!prod) return res.status(404).json({ error: 'Producto no encontrado' })
+  res.json({ ...prod, id: prod._id })
+})
+
+// Top 10 más vendidos
+app.get('/api/productos/top', auth, async (req, res) => {
+  const hoy = todayStr()
+  const ventasHoy = await db.ventas.find({ estado: 'completada' })
+  const ventasIds = ventasHoy.map(v => v._id)
+  const items = ventasIds.length ? await db.ventaItems.find({ venta_id: { $in: ventasIds } }) : []
+  const conteo = {}
+  for (const i of items) {
+    if (!conteo[i.producto_id]) conteo[i.producto_id] = { producto_id: i.producto_id, nombre: i.nombre_producto, cantidad: 0 }
+    conteo[i.producto_id].cantidad += i.cantidad
+  }
+  const top = Object.values(conteo).sort((a, b) => b.cantidad - a.cantidad).slice(0, 10)
+  // Enriquecer con datos del producto
+  const result = await Promise.all(top.map(async t => {
+    const p = await db.productos.findOne({ _id: t.producto_id })
+    return p ? { ...p, id: p._id, total_vendido: t.cantidad } : null
+  }))
+  res.json(result.filter(Boolean))
+})
+
+// ── RENDIMIENTO VENDEDORES ────────────────────────────────────────────────────
+app.get('/api/caja/rendimiento-vendedores', auth, adminOnly, async (req, res) => {
+  const { desde, hasta } = req.query
+  const d = desde || todayStr()
+  const h = hasta || d
+  const ventas = await db.ventas.find({ estado: 'completada' })
+  const filtradas = ventas.filter(v => v.creado_en.slice(0, 10) >= d && v.creado_en.slice(0, 10) <= h)
+  const mapa = {}
+  for (const v of filtradas) {
+    const key = v.cajero || v.usuario_id
+    if (!mapa[key]) mapa[key] = { cajero: v.cajero, ventas: 0, total: 0, descuentos: 0, canceladas: 0 }
+    mapa[key].ventas++
+    mapa[key].total += v.total
+    mapa[key].descuentos += v.descuento || 0
+  }
+  const canceladas = await db.ventas.find({ estado: 'cancelada' })
+  const cancelFiltradas = canceladas.filter(v => v.creado_en.slice(0, 10) >= d && v.creado_en.slice(0, 10) <= h)
+  for (const v of cancelFiltradas) {
+    const key = v.cajero || v.usuario_id
+    if (mapa[key]) mapa[key].canceladas++
+  }
+  const result = Object.values(mapa).map(r => ({
+    ...r,
+    ticket_promedio: r.ventas > 0 ? r.total / r.ventas : 0
+  })).sort((a, b) => b.total - a.total)
+  res.json(result)
+})
+
+// ── VENTAS — actualizar para soportar cliente, pago mixto y combos ─────────────
+// (el endpoint POST /api/ventas ya existe, solo agregamos campos opcionales)
+
+// ── CONFIGURACIÓN EMPRESA ─────────────────────────────────────────────────────
+app.get('/api/config', auth, async (req, res) => {
+  const cfg = await db.config.findOne({ _id: 'empresa' })
+  res.json(cfg || {
+    nombre: '', nit: '', direccion: '', telefono: '', email: '',
+    ciudad: '', descripcion: '', logo: null,
+    iva: 19, tamano_impresion: '80mm',
+    pie_factura: '¡Gracias por su compra!'
+  })
+})
+
+app.put('/api/config', auth, adminOnly, async (req, res) => {
+  const datos = { ...req.body, _id: 'empresa', actualizado_en: now() }
+  const existe = await db.config.findOne({ _id: 'empresa' })
+  if (existe) await db.config.update({ _id: 'empresa' }, { $set: datos })
+  else await db.config.insert(datos)
+  res.json({ ok: true })
 })
 
 app.listen(PORT, () => console.log(`🍺 Enjoy Cheladas POS → http://localhost:${PORT}`))

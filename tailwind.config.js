@@ -7,16 +7,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#FF6B35',
-        secondary: '#F7931E',
-        accent: '#FDC830',
-        dark: '#2C3E50',
-        light: '#ECF0F1'
+        primary:   '#F4622A',
+        secondary: '#E8920A',
+        accent:    '#F5C842',
+        dark:      '#0F0B08',
+        'dark-card':   '#1A1410',
+        'dark-raised': '#231C16',
+        'dark-hover':  '#2E2419',
+        'text-base':   '#F5EDE4',
+        'text-muted':  '#A8917E',
+        'text-dim':    '#6B5545',
+        light: '#F5EDE4',
       },
       fontFamily: {
-        display: ['Poppins', 'sans-serif'],
-        body: ['Inter', 'sans-serif']
-      }
+        display: ['Bebas Neue', 'sans-serif'],
+        body:    ['Nunito', 'sans-serif'],
+        sans:    ['Nunito', 'sans-serif'],
+      },
+      borderColor: {
+        DEFAULT: 'rgba(244, 98, 42, 0.12)',
+      },
     },
   },
   plugins: [],

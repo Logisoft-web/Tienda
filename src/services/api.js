@@ -30,10 +30,35 @@ export const api = {
 
   // Productos
   getProductos: () => req('GET', '/productos'),
+  getProductosTop: () => req('GET', '/productos/top'),
+  buscarPorCodigo: (codigo) => req('GET', `/productos/buscar/${encodeURIComponent(codigo)}`),
   createProducto: (body) => req('POST', '/productos', body),
   updateProducto: (id, body) => req('PUT', `/productos/${id}`, body),
   deleteProducto: (id) => req('DELETE', `/productos/${id}`),
   ajustarStock: (id, body) => req('PATCH', `/productos/${id}/stock`, body),
+
+  // Categorías y Proveedores
+  getCategorias: () => req('GET', '/categorias'),
+  getProveedores: () => req('GET', '/proveedores'),
+
+  // Clientes
+  getClientes: (q = '') => req('GET', `/clientes${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  createCliente: (body) => req('POST', '/clientes', body),
+  updateCliente: (id, body) => req('PUT', `/clientes/${id}`, body),
+  deleteCliente: (id) => req('DELETE', `/clientes/${id}`),
+
+  // Secciones
+  getSecciones: () => req('GET', '/secciones'),
+  createSeccion: (body) => req('POST', '/secciones', body),
+  updateSeccion: (id, body) => req('PUT', `/secciones/${id}`, body),
+  deleteSeccion: (id) => req('DELETE', `/secciones/${id}`),
+  getProductosSeccion: (id) => req('GET', `/secciones/${id}/productos`),
+
+  // Combos
+  getCombos: () => req('GET', '/combos'),
+  createCombo: (body) => req('POST', '/combos', body),
+  updateCombo: (id, body) => req('PUT', `/combos/${id}`, body),
+  deleteCombo: (id) => req('DELETE', `/combos/${id}`),
 
   // Ventas
   getVentas: (params = {}) => {
@@ -67,6 +92,14 @@ export const api = {
     return req('GET', `/caja/movimientos${q ? '?' + q : ''}`)
   },
   addMovimiento: (body) => req('POST', '/caja/movimiento', body),
+  getRendimientoVendedores: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return req('GET', `/caja/rendimiento-vendedores${q ? '?' + q : ''}`)
+  },
+
+  // Configuración empresa
+  getConfig: () => req('GET', '/config'),
+  updateConfig: (body) => req('PUT', '/config', body),
 
   // Reportes
   getResumen: (params = {}) => {
@@ -77,15 +110,29 @@ export const api = {
     const q = new URLSearchParams(params).toString()
     const token = getToken()
     const url = `${BASE}/reportes/ventas-csv${q ? '?' + q : ''}`
-    const a = document.createElement('a')
-    a.href = url
-    // Fetch con auth para descarga
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
       .then(blob => {
         const burl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
         a.href = burl
         a.download = `ventas_${params.desde || 'hoy'}.csv`
+        a.click()
+        URL.revokeObjectURL(burl)
+      })
+  },
+
+  descargarContable: (params = {}) => {
+    const q = new URLSearchParams({ ...params, formato: 'csv' }).toString()
+    const token = getToken()
+    const url = `${BASE}/reportes/contable?${q}`
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const burl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = burl
+        a.download = `reporte_contable_${params.desde || 'hoy'}_${params.hasta || 'hoy'}.csv`
         a.click()
         URL.revokeObjectURL(burl)
       })

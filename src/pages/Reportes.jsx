@@ -45,9 +45,14 @@ export default function Reportes() {
             <RefreshCw size={16} className={`text-gray-500 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => api.descargarCSV(rango)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">
+            <Download size={15} /> CSV ventas
+          </button>
+          <button onClick={() => api.descargarContable(rango)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-sm"
-            style={{ background: 'linear-gradient(135deg, #FF6B35, #F7931E)' }}>
-            <Download size={15} /> Descargar CSV
+            style={{ background: 'linear-gradient(135deg, #7C3AED, #A855F7)' }}
+            title="Reporte completo para contador: ventas, IVA, base gravable, métodos de pago, detalle por producto">
+            <Download size={15} /> Reporte DIAN
           </button>
         </div>
       </div>
@@ -87,9 +92,9 @@ export default function Reportes() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
               { icon: ShoppingCart, label: 'Total ventas', value: data.ventas?.total_ventas || 0, color: 'bg-primary' },
-              { icon: DollarSign, label: 'Ingresos', value: `$${fmt(data.ventas?.ingresos)}`, color: 'bg-green-500' },
-              { icon: TrendingUp, label: 'Ticket promedio', value: `$${fmt(data.ventas?.ticket_promedio)}`, color: 'bg-blue-500' },
-              { icon: BarChart2, label: 'Margen bruto', value: `${data.ventas?.margen_bruto_pct ?? 0}%`, sub: `$${fmt(data.ventas?.ganancia_bruta)} ganancia`, color: 'bg-purple-500' },
+              { icon: DollarSign, label: 'Ingresos', value: fmt(data.ventas?.ingresos), color: 'bg-green-500' },
+              { icon: TrendingUp, label: 'Ticket promedio', value: fmt(data.ventas?.ticket_promedio), color: 'bg-blue-500' },
+              { icon: BarChart2, label: 'Margen bruto', value: `${data.ventas?.margen_bruto_pct ?? 0}%`, sub: `${fmt(data.ventas?.ganancia_bruta)} ganancia`, color: 'bg-purple-500' },
             ].map(({ icon: Icon, label, value, sub, color }) => (
               <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 fade-in">
                 <div className="flex items-start justify-between">
@@ -127,7 +132,7 @@ export default function Reportes() {
                           <p className="text-xs text-purple-500 mt-0.5">Margen: {p.margen}%</p>
                         )}
                       </div>
-                      <p className="text-sm font-bold text-dark w-20 text-right shrink-0">${fmt(p.total)}</p>
+                      <p className="text-sm font-bold text-dark w-20 text-right shrink-0">{fmt(p.total)}</p>
                     </div>
                   ))}
                 </div>
@@ -180,6 +185,37 @@ export default function Reportes() {
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Resumen contable */}
+          {data?.ventas && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-semibold text-dark">Resumen contable (DIAN)</h3>
+                <button onClick={() => api.descargarContable(rango)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold"
+                  style={{ background: 'linear-gradient(135deg, #7C3AED, #A855F7)' }}>
+                  <Download size={12} /> Descargar
+                </button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'Ingresos brutos', value: `$${fmt(data.ventas.ingresos)}`, color: 'text-green-600', sub: 'Total facturado' },
+                  { label: 'Base gravable', value: `$${fmt(data.ventas.ingresos / 1.19)}`, color: 'text-blue-600', sub: 'Sin IVA' },
+                  { label: 'IVA generado 19%', value: `$${fmt(data.ventas.ingresos - data.ventas.ingresos / 1.19)}`, color: 'text-purple-600', sub: 'A declarar' },
+                  { label: 'Descuentos', value: `$${fmt(0)}`, color: 'text-orange-600', sub: 'Total período' },
+                ].map(item => (
+                  <div key={item.label} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-500">{item.label}</p>
+                    <p className={`font-bold text-base mt-0.5 ${item.color}`}>{item.value}</p>
+                    <p className="text-xs text-gray-400">{item.sub}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-3 border-t border-gray-100 pt-2">
+                * Documento Equivalente POS — Régimen Simplificado. El botón "Reporte DIAN" genera el CSV completo con detalle de ventas, items, IVA desglosado y métodos de pago para entregar al contador.
+              </p>
             </div>
           )}
 

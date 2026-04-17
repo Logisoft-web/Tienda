@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt', // Prompt, no autoUpdate silencioso — anti-patrón "Silent Update"
+      registerType: 'autoUpdate',
+      // Deshabilitar en desarrollo para evitar conflictos
+      devOptions: { enabled: false },
       includeAssets: ['logo.png', 'favicon.svg'],
       manifest: {
         name: 'Enjoy Cheladas POS',
@@ -41,11 +43,8 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Solo cachear app shell — evitar "Everything Cache" anti-patrón
         globPatterns: ['**/*.{js,css,html,svg}'],
         cleanupOutdatedCaches: true,
-        navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           // Imágenes: Cache First con expiración 30 días
           {

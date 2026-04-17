@@ -6,8 +6,8 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export default function Caja() {
-  const { isAdmin, user } = useAuth()
-  const [caja, setCaja] = useState(undefined) // undefined=cargando, null=cerrada
+  const { isAdmin } = useAuth()
+  const [caja, setCaja] = useState(undefined)
   const [movimientos, setMovimientos] = useState([])
   const [montoApertura, setMontoApertura] = useState('')
   const [montoCierre, setMontoCierre] = useState('')
@@ -30,9 +30,14 @@ export default function Caja() {
 
   useEffect(() => { cargar() }, [])
 
-  const totalIngresos = movimientos.filter(m => m.tipo === 'ingreso' || m.tipo === 'apertura').reduce((s, m) => s + m.monto, 0)
-  const totalEgresos = movimientos.filter(m => m.tipo === 'egreso' || m.tipo === 'cierre').reduce((s, m) => s + m.monto, 0)
-  const saldoActual = totalIngresos - totalEgresos
+  const ingresosManual = movimientos.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0)
+  const egresosManual  = movimientos.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0)
+  const ventasEfectivo = caja?.ventas_efectivo_hoy ?? 0
+  const cambiosHoy     = caja?.cambios_hoy ?? 0
+  const montoInicial   = caja?.monto_inicial ?? 0
+  const totalIngresos  = montoInicial + ventasEfectivo + ingresosManual
+  const totalEgresos   = cambiosHoy + egresosManual
+  const saldoActual    = caja?.efectivo_disponible ?? (totalIngresos - totalEgresos)
 
   const abrirCaja = async () => {
     setLoading(true)
@@ -61,37 +66,58 @@ export default function Caja() {
     finally { setLoading(false) }
   }
 
-  const tipoColor = (tipo) => {
-    if (tipo === 'ingreso' || tipo === 'apertura') return 'text-green-600 bg-green-50'
-    return 'text-red-500 bg-red-50'
-  }
+  const esIngreso = (tipo) => tipo === 'ingreso' || tipo === 'apertura'
 
-  const tipoIcon = (tipo) => {
-    if (tipo === 'ingreso' || tipo === 'apertura') return '+'
-    return '-'
-  }
+  // Modal base reutilizable
+  const Modal = ({ title, onClose, children }) => (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="rounded-2xl w-full max-w-sm shadow-2xl fade-in"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-display text-lg" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display font-bold text-2xl text-dark">Caja</h1>
-          <p className="text-gray-500 text-sm capitalize">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p>
+          <h1 className="font-display text-2xl" style={{ color: 'var(--text-primary)' }}>Caja</h1>
+          <p className="text-sm capitalize" style={{ color: 'var(--text-muted)' }}>
+            {format(new Date(), "EEEE d 'de' MMMM", { locale: es })}
+          </p>
         </div>
-        <button onClick={cargar} className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
-          <RefreshCw size={16} className="text-gray-500" />
+        <button onClick={cargar}
+          className="p-2 rounded-xl transition-colors"
+          style={{ background: 'var(--bg-raised)', color: 'var(--text-muted)' }}>
+          <RefreshCw size={16} />
         </button>
       </div>
 
       {/* Estado de caja */}
-      <div className={`rounded-2xl p-5 mb-6 flex items-center justify-between ${caja ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+      <div className="rounded-2xl p-5 mb-6 flex items-center justify-between"
+        style={{
+          background: caja ? 'var(--success-bg)' : 'var(--danger-bg)',
+          border: `1px solid ${caja ? 'var(--success-border)' : 'var(--danger-border)'}`
+        }}>
         <div className="flex items-center gap-3">
-          {caja ? <Unlock size={24} className="text-green-600" /> : <Lock size={24} className="text-red-500" />}
+          {caja
+            ? <Unlock size={24} style={{ color: 'var(--success)' }} />
+            : <Lock size={24} style={{ color: 'var(--danger)' }} />
+          }
           <div>
-            <p className={`font-bold text-lg ${caja ? 'text-green-700' : 'text-red-600'}`}>
+            <p className="font-bold text-lg" style={{ color: caja ? 'var(--success)' : 'var(--danger)' }}>
               Caja {caja ? 'ABIERTA' : 'CERRADA'}
             </p>
-            {caja && <p className="text-xs text-green-600">Abierta a las {format(new Date(caja.abierta_en), 'HH:mm')}</p>}
+            {caja && (
+              <p className="text-xs" style={{ color: 'var(--success)' }}>
+                Abierta a las {format(new Date(caja.abierta_en), 'HH:mm')}
+              </p>
+            )}
           </div>
         </div>
         {isAdmin && (
@@ -99,17 +125,19 @@ export default function Caja() {
             {!caja ? (
               <button onClick={() => setShowApertura(true)}
                 className="px-4 py-2 rounded-xl text-white text-sm font-semibold"
-                style={{ background: 'linear-gradient(135deg, #FF6B35, #F7931E)' }}>
+                style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
                 Abrir caja
               </button>
             ) : (
               <>
                 <button onClick={() => setShowMovimiento(true)}
-                  className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                  className="px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-1 transition-colors"
+                  style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                   <Plus size={14} /> Movimiento
                 </button>
                 <button onClick={() => setShowCierre(true)}
-                  className="px-4 py-2 rounded-xl bg-dark text-white text-sm font-semibold">
+                  className="px-4 py-2 rounded-xl text-sm font-semibold"
+                  style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                   Cerrar caja
                 </button>
               </>
@@ -118,48 +146,83 @@ export default function Caja() {
         )}
       </div>
 
-      {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-center">
-          <TrendingUp size={20} className="text-green-500 mx-auto mb-1" />
-          <p className="text-xs text-gray-500">Ingresos</p>
-          <p className="font-bold text-green-600 text-lg">${totalIngresos.toFixed(2)}</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-center">
-          <TrendingDown size={20} className="text-red-400 mx-auto mb-1" />
-          <p className="text-xs text-gray-500">Egresos</p>
-          <p className="font-bold text-red-500 text-lg">${totalEgresos.toFixed(2)}</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 text-center">
-          <DollarSign size={20} className="text-primary mx-auto mb-1" />
-          <p className="text-xs text-gray-500">Saldo</p>
-          <p className="font-bold text-primary text-lg">${saldoActual.toFixed(2)}</p>
-        </div>
+      {/* Resumen financiero */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          {
+            icon: TrendingUp, label: 'Ingresos hoy',
+            value: `$${(caja?.ingresos_ventas_hoy ?? 0).toLocaleString('es-CO')}`,
+            sub: `${caja?.num_ventas_hoy ?? 0} ventas`,
+            iconColor: 'var(--success)', valueBg: 'var(--success-bg)', valueBorder: 'var(--success-border)', valueColor: 'var(--success)'
+          },
+          {
+            icon: TrendingDown, label: 'Egresos hoy',
+            value: `$${totalEgresos.toLocaleString('es-CO')}`,
+            sub: `Cambios: $${(caja?.cambios_hoy ?? 0).toLocaleString('es-CO')}`,
+            iconColor: 'var(--danger)', valueBg: 'var(--danger-bg)', valueBorder: 'var(--danger-border)', valueColor: 'var(--danger)'
+          },
+          {
+            icon: DollarSign, label: 'Apertura',
+            value: `$${(caja?.monto_inicial ?? 0).toLocaleString('es-CO')}`,
+            sub: 'Monto inicial',
+            iconColor: 'var(--info)', valueBg: 'var(--info-bg)', valueBorder: 'var(--info-border)', valueColor: 'var(--info)'
+          },
+          {
+            icon: DollarSign, label: 'Saldo en caja',
+            value: `$${saldoActual.toLocaleString('es-CO')}`,
+            sub: 'Efectivo disponible',
+            iconColor: saldoActual >= 0 ? 'var(--primary)' : 'var(--danger)',
+            valueBg: saldoActual >= 0 ? 'rgba(244,98,42,0.1)' : 'var(--danger-bg)',
+            valueBorder: saldoActual >= 0 ? 'var(--border-hover)' : 'var(--danger-border)',
+            valueColor: saldoActual >= 0 ? 'var(--primary)' : 'var(--danger)'
+          },
+        ].map(({ icon: Icon, label, value, sub, iconColor, valueBg, valueBorder, valueColor }) => (
+          <div key={label} className="rounded-2xl p-4"
+            style={{ background: valueBg, border: `1px solid ${valueBorder}` }}>
+            <div className="flex items-center gap-2 mb-1">
+              <Icon size={16} style={{ color: iconColor }} />
+              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{label}</p>
+            </div>
+            <p className="font-bold text-lg" style={{ color: valueColor }}>{value}</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>{sub}</p>
+          </div>
+        ))}
       </div>
 
       {/* Movimientos */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-display font-semibold text-dark">Movimientos del día</h3>
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-display text-base" style={{ color: 'var(--text-primary)' }}>
+            Movimientos del día
+          </h3>
         </div>
-        <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto">
           {movimientos.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
+            <div className="text-center py-10" style={{ color: 'var(--text-dim)' }}>
               <DollarSign size={36} className="mx-auto mb-2 opacity-30" />
               <p className="text-sm">Sin movimientos hoy</p>
             </div>
           ) : (
             movimientos.map(m => (
-              <div key={m.id} className="flex items-center gap-3 px-5 py-3">
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${tipoColor(m.tipo)}`}>
-                  {tipoIcon(m.tipo)}
+              <div key={m.id} className="flex items-center gap-3 px-5 py-3"
+                style={{ borderBottom: '1px solid var(--border)' }}>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+                  style={{
+                    background: esIngreso(m.tipo) ? 'var(--success-bg)' : 'var(--danger-bg)',
+                    color: esIngreso(m.tipo) ? 'var(--success)' : 'var(--danger)'
+                  }}>
+                  {esIngreso(m.tipo) ? '+' : '-'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-dark truncate">{m.concepto}</p>
-                  <p className="text-xs text-gray-400">{m.usuario} · {format(new Date(m.creado_en), 'HH:mm')}</p>
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{m.concepto}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {m.usuario} · {format(new Date(m.creado_en), 'HH:mm')}
+                  </p>
                 </div>
-                <p className={`font-bold text-sm ${m.tipo === 'ingreso' || m.tipo === 'apertura' ? 'text-green-600' : 'text-red-500'}`}>
-                  {tipoIcon(m.tipo)}${m.monto.toFixed(2)}
+                <p className="font-bold text-sm"
+                  style={{ color: esIngreso(m.tipo) ? 'var(--success)' : 'var(--danger)' }}>
+                  {esIngreso(m.tipo) ? '+' : '-'}${m.monto.toFixed(2)}
                 </p>
               </div>
             ))
@@ -169,83 +232,104 @@ export default function Caja() {
 
       {/* Modal apertura */}
       {showApertura && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full fade-in">
-            <h3 className="font-display font-bold text-xl text-dark mb-4">Abrir caja</h3>
-            <label className="block text-sm text-gray-600 mb-1">Monto inicial en caja</label>
-            <input type="number" value={montoApertura} onChange={e => setMontoApertura(e.target.value)}
-              placeholder="0.00" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4" />
-            {msg && <p className="text-red-500 text-xs mb-3">{msg}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setShowApertura(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600">Cancelar</button>
-              <button onClick={abrirCaja} disabled={loading}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #FF6B35, #F7931E)' }}>
-                Abrir
-              </button>
-            </div>
+        <Modal title="Abrir caja" onClose={() => setShowApertura(false)}>
+          <label className="block text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
+            Monto inicial en caja
+          </label>
+          <input type="number" value={montoApertura}
+            onChange={e => setMontoApertura(e.target.value)}
+            placeholder="0.00"
+            className="input-dark text-lg font-bold text-center mb-4" />
+          {msg && <p className="text-xs mb-3" style={{ color: 'var(--danger)' }}>{msg}</p>}
+          <div className="flex gap-3">
+            <button onClick={() => setShowApertura(false)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              Cancelar
+            </button>
+            <button onClick={abrirCaja} disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
+              Abrir
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal cierre */}
       {showCierre && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full fade-in">
-            <h3 className="font-display font-bold text-xl text-dark mb-2">Cerrar caja</h3>
-            <p className="text-sm text-gray-500 mb-4">Saldo calculado: <strong className="text-primary">${saldoActual.toFixed(2)}</strong></p>
-            <label className="block text-sm text-gray-600 mb-1">Monto físico en caja</label>
-            <input type="number" value={montoCierre} onChange={e => setMontoCierre(e.target.value)}
-              placeholder={saldoActual.toFixed(2)} className="w-full px-4 py-3 border border-gray-200 rounded-xl text-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4" />
-            {montoCierre && (
-              <div className={`text-center text-sm font-bold mb-4 ${parseFloat(montoCierre) >= saldoActual ? 'text-green-600' : 'text-red-500'}`}>
-                Diferencia: ${(parseFloat(montoCierre) - saldoActual).toFixed(2)}
-              </div>
-            )}
-            {msg && <p className="text-red-500 text-xs mb-3">{msg}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setShowCierre(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600">Cancelar</button>
-              <button onClick={cerrarCaja} disabled={loading}
-                className="flex-1 py-2.5 rounded-xl bg-dark text-white text-sm font-semibold disabled:opacity-50">
-                Cerrar caja
-              </button>
+        <Modal title="Cerrar caja" onClose={() => setShowCierre(false)}>
+          <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
+            Saldo calculado: <strong style={{ color: 'var(--primary)' }}>${saldoActual.toFixed(2)}</strong>
+          </p>
+          <label className="block text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
+            Monto físico en caja
+          </label>
+          <input type="number" value={montoCierre}
+            onChange={e => setMontoCierre(e.target.value)}
+            placeholder={saldoActual.toFixed(2)}
+            className="input-dark text-lg font-bold text-center mb-4" />
+          {montoCierre && (
+            <div className="text-center text-sm font-bold mb-4"
+              style={{ color: parseFloat(montoCierre) >= saldoActual ? 'var(--success)' : 'var(--danger)' }}>
+              Diferencia: ${(parseFloat(montoCierre) - saldoActual).toFixed(2)}
             </div>
+          )}
+          {msg && <p className="text-xs mb-3" style={{ color: 'var(--danger)' }}>{msg}</p>}
+          <div className="flex gap-3">
+            <button onClick={() => setShowCierre(false)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              Cancelar
+            </button>
+            <button onClick={cerrarCaja} disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+              style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+              Cerrar caja
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal movimiento */}
       {showMovimiento && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full fade-in">
-            <h3 className="font-display font-bold text-xl text-dark mb-4">Nuevo movimiento</h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                {[['ingreso', '📥 Ingreso'], ['egreso', '📤 Egreso']].map(([v, l]) => (
-                  <button key={v} onClick={() => setMovForm({ ...movForm, tipo: v })}
-                    className={`py-2 rounded-xl text-sm font-medium border-2 transition-all ${movForm.tipo === v ? 'border-primary bg-primary/5 text-primary' : 'border-gray-100 text-gray-500'}`}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-              <input type="text" placeholder="Concepto" value={movForm.concepto}
-                onChange={e => setMovForm({ ...movForm, concepto: e.target.value })}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-              <input type="number" placeholder="Monto" value={movForm.monto}
-                onChange={e => setMovForm({ ...movForm, monto: e.target.value })}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        <Modal title="Nuevo movimiento" onClose={() => setShowMovimiento(false)}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              {[['ingreso', '📥 Ingreso'], ['egreso', '📤 Egreso']].map(([v, l]) => (
+                <button key={v} onClick={() => setMovForm({ ...movForm, tipo: v })}
+                  className="py-2 rounded-xl text-sm font-medium border-2 transition-all"
+                  style={{
+                    borderColor: movForm.tipo === v ? 'var(--primary)' : 'var(--border)',
+                    background: movForm.tipo === v ? 'rgba(244,98,42,0.1)' : 'transparent',
+                    color: movForm.tipo === v ? 'var(--primary)' : 'var(--text-muted)'
+                  }}>
+                  {l}
+                </button>
+              ))}
             </div>
-            {msg && <p className="text-red-500 text-xs mt-2">{msg}</p>}
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowMovimiento(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600">Cancelar</button>
-              <button onClick={agregarMovimiento} disabled={!movForm.concepto || !movForm.monto || loading}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #FF6B35, #F7931E)' }}>
-                Guardar
-              </button>
-            </div>
+            <input type="text" placeholder="Concepto" value={movForm.concepto}
+              onChange={e => setMovForm({ ...movForm, concepto: e.target.value })}
+              className="input-dark" />
+            <input type="number" placeholder="Monto" value={movForm.monto}
+              onChange={e => setMovForm({ ...movForm, monto: e.target.value })}
+              className="input-dark" />
           </div>
-        </div>
+          {msg && <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>{msg}</p>}
+          <div className="flex gap-3 mt-4">
+            <button onClick={() => setShowMovimiento(false)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              Cancelar
+            </button>
+            <button onClick={agregarMovimiento}
+              disabled={!movForm.concepto || !movForm.monto || loading}
+              className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
+              Guardar
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )
