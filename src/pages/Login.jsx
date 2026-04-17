@@ -32,29 +32,29 @@ export default function Login() {
 
       {/* Panel izquierdo — branding */}
       <div className="hidden lg:flex flex-col items-center justify-center w-5/12 relative overflow-hidden"
-        style={{ background: 'var(--bg-card)', borderRight: '1px solid var(--border)' }}>
+        style={{ background: 'linear-gradient(145deg, #F4622A 0%, #E8920A 100%)' }}>
 
         {/* Patrón de fondo sutil */}
-        <div className="absolute inset-0 opacity-5"
+        <div className="absolute inset-0 opacity-10"
           style={{
-            backgroundImage: 'radial-gradient(circle, #F4622A 1px, transparent 1px)',
-            backgroundSize: '32px 32px'
+            backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
+            backgroundSize: '28px 28px'
           }} />
 
         {/* Glow ambiental */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full opacity-20 blur-3xl"
-          style={{ background: 'var(--primary)' }} />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-20 blur-3xl"
+          style={{ background: '#fff' }} />
 
         <div className="relative z-10 flex flex-col items-center text-center px-12">
-          <div className="w-28 h-28 rounded-2xl overflow-hidden mb-8 ring-2 shadow-2xl"
-            style={{ ringColor: 'rgba(244,98,42,0.4)', boxShadow: '0 0 40px rgba(244,98,42,0.25)' }}>
+          <div className="w-28 h-28 rounded-2xl overflow-hidden mb-8 shadow-2xl"
+            style={{ border: '3px solid rgba(255,255,255,0.4)' }}>
             <img src="/logo.png" alt="Enjoy Cheladas" className="w-full h-full object-cover" />
           </div>
 
-          <h1 className="font-display text-5xl mb-2" style={{ color: 'var(--text-primary)', letterSpacing: '0.06em' }}>
+          <h1 className="font-display text-5xl mb-2 text-white" style={{ letterSpacing: '0.06em' }}>
             ENJOY<br />CHELADAS
           </h1>
-          <p className="text-sm font-medium mb-12" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm font-medium mb-12" style={{ color: 'rgba(255,255,255,0.75)' }}>
             Sistema de Punto de Venta
           </p>
 
@@ -62,7 +62,7 @@ export default function Login() {
             {[['🍺', 'Ventas'], ['📦', 'Inventario'], ['📊', 'Reportes']].map(([emoji, label]) => (
               <div key={label} className="text-center">
                 <div className="text-2xl mb-1">{emoji}</div>
-                <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                <p className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>{label}</p>
               </div>
             ))}
           </div>
@@ -70,13 +70,13 @@ export default function Login() {
       </div>
 
       {/* Panel derecho — formulario */}
-      <div className="flex-1 flex items-center justify-center px-6">
+      <div className="flex-1 flex items-center justify-center px-6" style={{ background: 'var(--bg-base)' }}>
         <div className="w-full max-w-sm fade-in">
 
           {/* Logo mobile */}
           <div className="lg:hidden flex justify-center mb-8">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2"
-              style={{ ringColor: 'rgba(244,98,42,0.4)', boxShadow: '0 0 30px rgba(244,98,42,0.2)' }}>
+            <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg"
+              style={{ border: '2px solid var(--border-hover)' }}>
               <img src="/logo.png" alt="Enjoy Cheladas" className="w-full h-full object-cover" />
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function Login() {
 
             {error && (
               <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl"
-                style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+                style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)' }}>
                 <AlertCircle size={15} className="shrink-0" />
                 {error}
               </div>
@@ -140,7 +140,7 @@ export default function Login() {
               className="w-full py-3 rounded-xl font-bold text-white transition-all disabled:opacity-50 mt-2"
               style={{
                 background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-                boxShadow: loading ? 'none' : '0 0 24px rgba(244,98,42,0.35)'
+                boxShadow: loading ? 'none' : '0 4px 20px rgba(244,98,42,0.35)'
               }}>
               {loading ? 'Ingresando...' : 'Ingresar al sistema'}
             </button>

@@ -13,14 +13,14 @@ function usePWA() {
 }
 
 const navItems = [
-  { to: '/',            icon: LayoutDashboard, label: 'Dashboard',    exact: true },
-  { to: '/ventas',      icon: ShoppingCart,    label: 'Ventas' },
-  { to: '/caja',        icon: DollarSign,      label: 'Caja' },
-  { to: '/clientes',    icon: Users,           label: 'Clientes' },
-  { to: '/inventario',  icon: Package,         label: 'Inventario',   adminOnly: true },
-  { to: '/reportes',    icon: BarChart2,        label: 'Reportes',     adminOnly: true },
-  { to: '/usuarios',    icon: Users,           label: 'Usuarios',     adminOnly: true },
-  { to: '/configuracion', icon: Settings,      label: 'Configuración', adminOnly: true },
+  { to: '/',              icon: LayoutDashboard, label: 'Dashboard',    exact: true },
+  { to: '/ventas',        icon: ShoppingCart,    label: 'Ventas' },
+  { to: '/caja',          icon: DollarSign,      label: 'Caja' },
+  { to: '/clientes',      icon: Users,           label: 'Clientes' },
+  { to: '/inventario',    icon: Package,         label: 'Inventario',   adminOnly: true },
+  { to: '/reportes',      icon: BarChart2,        label: 'Reportes',     adminOnly: true },
+  { to: '/usuarios',      icon: Users,           label: 'Usuarios',     adminOnly: true },
+  { to: '/configuracion', icon: Settings,        label: 'Configuración', adminOnly: true },
 ]
 
 export default function Layout() {
@@ -49,8 +49,8 @@ export default function Layout() {
 
       {/* Banner: actualización */}
       {needRefresh && (
-        <div className="fixed top-0 left-0 right-0 z-[100] px-4 py-2.5 flex items-center justify-between text-sm shadow-lg"
-          style={{ background: '#1a3a5c', color: '#93c5fd' }}>
+        <div className="fixed top-0 left-0 right-0 z-[100] px-4 py-2.5 flex items-center justify-between text-sm shadow-sm"
+          style={{ background: 'var(--info-bg)', color: 'var(--info)', borderBottom: '1px solid var(--info-border)' }}>
           <div className="flex items-center gap-2">
             <RefreshCw size={14} />
             <span>Nueva versión disponible</span>
@@ -58,10 +58,10 @@ export default function Layout() {
           <div className="flex gap-2">
             <button onClick={() => updateServiceWorker(true)}
               className="font-semibold px-3 py-1 rounded-lg text-xs transition-colors"
-              style={{ background: 'rgba(147,197,253,0.15)', color: '#93c5fd' }}>
+              style={{ background: 'rgba(37,99,235,0.1)', color: 'var(--info)' }}>
               Actualizar
             </button>
-            <button onClick={() => setNeedRefresh(false)} style={{ color: 'rgba(147,197,253,0.5)' }}>
+            <button onClick={() => setNeedRefresh(false)} style={{ color: 'var(--info)' }}>
               <X size={15} />
             </button>
           </div>
@@ -71,7 +71,7 @@ export default function Layout() {
       {/* Banner: offline */}
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 z-[99] py-2 flex items-center justify-center gap-2 text-xs"
-          style={{ background: '#7c2d12', color: '#fed7aa' }}>
+          style={{ background: 'var(--warning-bg)', color: 'var(--warning)', borderBottom: '1px solid var(--warning-border)' }}>
           <WifiOff size={13} />
           <span>Sin conexión — modo offline</span>
         </div>
@@ -83,7 +83,8 @@ export default function Layout() {
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 ring-2" style={{ ringColor: 'var(--primary)' }}>
+          <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 shadow-sm"
+            style={{ border: '2px solid var(--border-hover)' }}>
             <img src="/logo.png" alt="Enjoy Cheladas" className="w-full h-full object-cover" />
           </div>
           <div>
@@ -98,9 +99,9 @@ export default function Layout() {
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {items.map(({ to, icon: Icon, label, exact }) => (
             <NavLink key={to} to={to} end={exact}
-              className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${isActive ? 'active-nav' : 'inactive-nav'}`}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
               style={({ isActive }) => isActive
-                ? { background: 'rgba(244,98,42,0.15)', color: 'var(--primary)' }
+                ? { background: 'rgba(244,98,42,0.1)', color: 'var(--primary)' }
                 : { color: 'var(--text-muted)' }
               }>
               {({ isActive }) => (
@@ -117,7 +118,7 @@ export default function Layout() {
         <div className="px-4 py-4" style={{ borderTop: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-              style={{ background: 'rgba(244,98,42,0.2)', color: 'var(--primary)' }}>
+              style={{ background: 'rgba(244,98,42,0.12)', color: 'var(--primary)' }}>
               {user?.nombre?.[0]?.toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -126,10 +127,10 @@ export default function Layout() {
             </div>
           </div>
           <button onClick={handleLogout}
-            className="flex items-center gap-2 text-xs font-medium transition-colors w-full py-1.5 px-1 rounded-lg hover:bg-red-500/10"
+            className="flex items-center gap-2 text-xs font-medium transition-colors w-full py-1.5 px-1 rounded-lg"
             style={{ color: 'var(--text-dim)' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-bg)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.background = 'transparent' }}>
             <LogOut size={14} /> Cerrar sesión
           </button>
         </div>
@@ -153,8 +154,8 @@ export default function Layout() {
           {items.map(({ to, icon: Icon, label, exact }) => (
             <NavLink key={to} to={to} end={exact}
               style={({ isActive }) => isActive
-                ? { background: 'rgba(244,98,42,0.15)', color: 'var(--primary)', display:'flex', alignItems:'center', gap:'10px', padding:'10px 10px', borderRadius:'10px', fontSize:'13px', fontWeight:600 }
-                : { color: 'var(--text-muted)', display:'flex', alignItems:'center', gap:'10px', padding:'10px 10px', borderRadius:'10px', fontSize:'13px', fontWeight:600 }
+                ? { background: 'rgba(244,98,42,0.1)', color: 'var(--primary)', display:'flex', alignItems:'center', gap:'10px', padding:'10px', borderRadius:'10px', fontSize:'13px', fontWeight:600 }
+                : { color: 'var(--text-muted)', display:'flex', alignItems:'center', gap:'10px', padding:'10px', borderRadius:'10px', fontSize:'13px', fontWeight:600 }
               }>
               <Icon size={18} className="shrink-0" />
               {open && <span className="truncate">{label}</span>}
@@ -172,7 +173,7 @@ export default function Layout() {
       </aside>
 
       {/* ── Header mobile ── */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 shadow-lg"
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 shadow-sm"
         style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="" className="w-8 h-8 rounded-xl object-cover" />
@@ -196,8 +197,8 @@ export default function Layout() {
             {items.map(({ to, icon: Icon, label, exact }) => (
               <NavLink key={to} to={to} end={exact}
                 style={({ isActive }) => isActive
-                  ? { background: 'rgba(244,98,42,0.15)', color: 'var(--primary)', display:'flex', alignItems:'center', gap:'14px', padding:'14px 16px', borderRadius:'14px', fontSize:'15px', fontWeight:700 }
-                  : { color: 'var(--text-muted)', display:'flex', alignItems:'center', gap:'14px', padding:'14px 16px', borderRadius:'14px', fontSize:'15px', fontWeight:600 }
+                  ? { background: 'rgba(244,98,42,0.1)', color: 'var(--primary)', display:'flex', alignItems:'center', gap:'14px', padding:'14px 16px', borderRadius:'14px', fontSize:'15px', fontWeight:700 }
+                  : { color: 'var(--text-secondary)', display:'flex', alignItems:'center', gap:'14px', padding:'14px 16px', borderRadius:'14px', fontSize:'15px', fontWeight:600 }
                 }>
                 <Icon size={20} />{label}
               </NavLink>
@@ -206,7 +207,7 @@ export default function Layout() {
           <div className="mt-auto pb-8 px-4">
             <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl" style={{ background: 'var(--bg-raised)' }}>
               <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
-                style={{ background: 'rgba(244,98,42,0.2)', color: 'var(--primary)' }}>
+                style={{ background: 'rgba(244,98,42,0.12)', color: 'var(--primary)' }}>
                 {user?.nombre?.[0]?.toUpperCase()}
               </div>
               <div>
@@ -216,7 +217,7 @@ export default function Layout() {
             </div>
             <button onClick={handleLogout}
               className="flex items-center gap-3 text-sm font-medium px-2 py-2 w-full"
-              style={{ color: 'var(--text-dim)' }}>
+              style={{ color: 'var(--text-muted)' }}>
               <LogOut size={17} /> Cerrar sesión
             </button>
           </div>
