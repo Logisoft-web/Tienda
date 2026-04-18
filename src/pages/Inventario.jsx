@@ -110,9 +110,18 @@ function SeccionProductos() {
 
   const abrirCrear = () => { setForm({...emptyProducto, codigo:genCodigo()}); setEditId(null); setMsg(''); setShowNuevaCat(false); setModal('form') }
   const abrirEditar = (p) => {
+    // Inferir tipo si no existe en el registro
+    const inferirTipo = (prod) => {
+      if (prod.tipo) return prod.tipo
+      const unidadesComida = ['libra','kilogramo','gramo','oz']
+      const unidadesObjeto = ['pieza','docena','media_docena','par','paquete','rollo']
+      if (unidadesComida.includes(prod.unidad)) return 'comida'
+      if (unidadesObjeto.includes(prod.unidad)) return 'objeto'
+      return 'bebida'
+    }
     setForm({ nombre:p.nombre, codigo:p.codigo||'', codigo_barras:p.codigo_barras||'', categoria:p.categoria||'',
       proveedor:p.proveedor||'', costo:p.costo??'0', precio:p.precio??'0', iva_pct:p.iva_pct??'0',
-      tipo:p.tipo||'bebida', unidad:p.unidad||'unidad', porcion_venta:p.porcion_venta||100, stock:p.stock??'0', stock_minimo:p.stock_minimo??'5', descripcion:p.descripcion||'', imagen:p.imagen||null })
+      tipo:inferirTipo(p), unidad:p.unidad||'unidad', porcion_venta:p.porcion_venta||100, stock:p.stock??'0', stock_minimo:p.stock_minimo??'5', descripcion:p.descripcion||'', imagen:p.imagen||null })
     setEditId(p.id); setMsg(''); setShowNuevaCat(false); setModal('form')
   }
   const abrirStock = (p) => { setEditId(p.id); setStockForm({ cantidad:'', tipo:'entrada' }); setModal('stock') }
