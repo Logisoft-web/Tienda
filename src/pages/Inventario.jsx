@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, Package, AlertTriangle, Search, X, ShoppingBag, La
 
 // Tipos de producto con sus unidades específicas
 const TIPOS_PRODUCTO = [
-  { value: 'bebida',   label: 'Bebida',    emoji: '🍺', desc: 'Cheladas, refrescos, jugos' },
+  { value: 'bebida',   label: 'Bebida',    emoji: '🍺', desc: 'Soda, Canada Dry, Hatsu, Smirnoff' },
   { value: 'comida',   label: 'Comida',    emoji: '🍓', desc: 'Frutas, ingredientes, alimentos' },
   { value: 'objeto',   label: 'Objeto',    emoji: '📦', desc: 'Vasos, pitillos, empaques' },
   { value: 'servicio', label: 'Servicio',  emoji: '⚡', desc: 'Adiciones, extras, servicios' },
