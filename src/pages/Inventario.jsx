@@ -223,7 +223,7 @@ function SeccionProductos() {
                 style={{ color: p.stock===0 ? 'var(--danger)' : p.stock<=p.stock_minimo ? 'var(--warning)' : 'var(--success)' }}>
                 {p.stock}
                 <span className="text-xs font-normal ml-1" style={{ color:'var(--text-muted)' }}>
-                  {UNIDADES.find(u=>u.value===p.unidad)?.label || p.unidad}
+                  {TODAS_UNIDADES.find(u=>u.value===p.unidad)?.label || p.unidad}
                 </span>
               </span>
               <div className="text-right">
