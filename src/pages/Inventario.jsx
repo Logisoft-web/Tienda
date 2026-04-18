@@ -288,11 +288,36 @@ function SeccionProductos() {
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Precio compra">
-                <InputField type="number" value={form.costo} onChange={e=>setForm({...form,costo:e.target.value})}/>
+              <Field label={form.tipo === 'comida' ? `Precio compra (total ${form.unidad || 'unidad'})` : 'Precio compra (por unidad)'}>
+                <InputField type="number" value={form.costo} onChange={e => {
+                  const costo = e.target.value
+                  setForm(f => {
+                    // Para comida: calcular precio venta por gramo automáticamente
+                    if (f.tipo === 'comida' && +costo > 0) {
+                      const gramos = f.unidad === 'libra' ? 500
+                        : f.unidad === 'kilogramo' ? 1000
+                        : f.unidad === 'oz' ? 28.35
+                        : f.unidad === 'gramo' ? 1
+                        : 1
+                      const precioGramo = gramos > 1 ? Math.ceil((+costo / gramos) * 1.3) : +costo
+                      return { ...f, costo, precio: String(precioGramo) }
+                    }
+                    return { ...f, costo }
+                  })
+                }}/>
+                {form.tipo === 'comida' && +form.costo > 0 && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    ≈ ${(+form.costo / (form.unidad === 'libra' ? 500 : form.unidad === 'kilogramo' ? 1000 : form.unidad === 'oz' ? 28.35 : 1)).toFixed(1)} por gramo
+                  </p>
+                )}
               </Field>
-              <Field label="Precio venta" required>
+              <Field label={form.tipo === 'comida' ? `Precio venta (por ${form.unidad === 'libra' || form.unidad === 'kilogramo' ? 'gramo' : form.unidad})` : 'Precio venta (por unidad)'} required>
                 <InputField type="number" value={form.precio} onChange={e=>setForm({...form,precio:e.target.value})}/>
+                {form.tipo === 'comida' && +form.precio > 0 && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--primary)' }}>
+                    Libra ≈ ${(+form.precio * 500).toLocaleString('es-CO')}
+                  </p>
+                )}
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
