@@ -149,7 +149,7 @@ app.get('/api/productos', auth, async (req, res) => {
 })
 
 app.post('/api/productos', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen } = req.body
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas } = req.body
   if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
   if (isNaN(+precio) || +precio <= 0) return res.status(400).json({ error: 'Precio debe ser mayor a 0' })
   const doc = await db.productos.insert({
@@ -160,24 +160,34 @@ app.post('/api/productos', auth, adminOnly, async (req, res) => {
     stock: +(stock||0),
     stock_minimo: +(stock_minimo||5),
     unidad: unidad||'unidad',
+    tipo: tipo||'bebida',
+    porcion_venta: +(porcion_venta||100),
     codigo: (codigo||'').trim(),
     codigo_barras: (codigo_barras||'').trim(),
     proveedor: (proveedor||'').trim(),
     iva_pct: +(iva_pct||0),
     descripcion: (descripcion||'').trim(),
     imagen: imagen||null,
+    fecha_vencimiento: fecha_vencimiento||null,
+    sabores_enlazados: sabores_enlazados||[],
+    bebidas_enlazadas: bebidas_enlazadas||[],
+    adiciones_enlazadas: adiciones_enlazadas||[],
     activo: true,
     creado_en: now()
   })
   res.json({ id: doc._id })
 })
-
 app.put('/api/productos/:id', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen } = req.body
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas } = req.body
   await db.productos.update({ _id: req.params.id }, { $set: {
     nombre, categoria, precio: +precio, costo: +costo, stock: +stock, stock_minimo: +stock_minimo, unidad,
+    tipo: tipo||'bebida', porcion_venta: +(porcion_venta||100),
     codigo: codigo||'', codigo_barras: codigo_barras||'', proveedor: proveedor||'',
     iva_pct: +(iva_pct||0), descripcion: descripcion||'', imagen: imagen||null,
+    fecha_vencimiento: fecha_vencimiento||null,
+    sabores_enlazados: sabores_enlazados||[],
+    bebidas_enlazadas: bebidas_enlazadas||[],
+    adiciones_enlazadas: adiciones_enlazadas||[],
     activo: activo ?? true
   }})
   res.json({ ok: true })
@@ -313,8 +323,51 @@ app.post('/api/ventas', auth, async (req, res) => {
   }
 
   try {
-    const venta = await db.ventas.insert({
-      folio, usuario_id: req.user.id, cajero: req.user.nombre,
+    // ── Validar stock antes de procesar ──────────────────────────────────────
+    for (const item of items) {
+      if (item.es_chelada && item.detalle) {
+        const { sabor, bebida, adiciones: adics } = item.detalle
+
+        if (sabor?.id) {
+          const ingredientes = (await db.productos.find({ activo: true }))
+            .filter(p => p.tipo === 'sabor' && Array.isArray(p.sabores_enlazados) && p.sabores_enlazados.includes(sabor.id))
+          if (ingredientes.length === 0)
+            return res.status(400).json({ error: `No hay ingredientes registrados para el sabor "${sabor.nombre}". Registra la fruta en inventario.` })
+          for (const ing of ingredientes) {
+            const necesario = (ing.porcion_venta || 100) * item.cantidad
+            if (ing.stock < necesario)
+              return res.status(400).json({ error: `Sin stock suficiente de "${ing.nombre}" para el sabor ${sabor.nombre}` })
+          }
+        }
+
+        if (bebida?.id) {
+          const vasos = (await db.productos.find({ activo: true }))
+            .filter(p => (p.tipo==='bebida'||p.tipo==='objeto') && Array.isArray(p.bebidas_enlazadas) && p.bebidas_enlazadas.includes(bebida.id))
+          if (vasos.length === 0)
+            return res.status(400).json({ error: `No hay bebidas/vasos registrados para "${bebida.nombre} ${bebida.oz}". Registra la bebida en inventario.` })
+          for (const vaso of vasos) {
+            if (vaso.stock < item.cantidad)
+              return res.status(400).json({ error: `Sin stock suficiente de "${vaso.nombre}" para ${bebida.nombre} ${bebida.oz}` })
+          }
+        }
+
+        if (adics?.length) {
+          for (const adicion of adics) {
+            const ings = (await db.productos.find({ tipo: 'adicion', activo: true }))
+              .filter(p => Array.isArray(p.adiciones_enlazadas) && p.adiciones_enlazadas.includes(adicion.id))
+            if (ings.length === 0)
+              return res.status(400).json({ error: `No hay ingredientes registrados para la adición "${adicion.nombre}". Registra el ingrediente en inventario.` })
+            for (const ing of ings) {
+              const necesario = (ing.porcion_venta || 100) * item.cantidad
+              if (ing.stock < necesario)
+                return res.status(400).json({ error: `Sin stock suficiente de "${ing.nombre}" para la adición ${adicion.nombre}` })
+            }
+          }
+        }
+      }
+    }
+
+    const venta = await db.ventas.insert({      folio, usuario_id: req.user.id, cajero: req.user.nombre,
       subtotal, descuento, total, metodo_pago,
       monto_recibido: monto_recibido || total, cambio,
       pago_mixto: pago_mixto || false,
@@ -331,18 +384,66 @@ app.post('/api/ventas', auth, async (req, res) => {
     for (const item of items) {
       await db.ventaItems.insert({ venta_id: venta._id, ...item, subtotal: item.precio_unitario * item.cantidad })
       if (!item.es_combo) {
-        // Descontar stock del producto
-        // Para comida: descontar porcion_venta gramos por cada unidad vendida
-        const prod = await db.productos.findOne({ _id: item.producto_id })
-        const descuento = prod?.tipo === 'comida'
-          ? (prod.porcion_venta || 100) * item.cantidad
-          : item.cantidad
-        await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -descuento } })
-        // Descontar insumos de la receta si existe
-        const receta = await db.recetas.findOne({ producto_id: item.producto_id })
-        if (receta?.ingredientes?.length) {
-          for (const ing of receta.ingredientes) {
-            await db.insumos.update({ _id: ing.insumo_id }, { $inc: { stock: -(ing.cantidad * item.cantidad) } })
+        // Para cheladas: solo descontar por enlaces, no por producto_id (es un ID virtual)
+        if (!item.es_chelada) {
+          // Descontar stock del producto normal
+          const prod = await db.productos.findOne({ _id: item.producto_id })
+          const descStock = prod?.tipo === 'comida'
+            ? (prod.porcion_venta || 100) * item.cantidad
+            : item.cantidad
+          await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -descStock } })
+          // Descontar insumos de la receta si existe
+          const receta = await db.recetas.findOne({ producto_id: item.producto_id })
+          if (receta?.ingredientes?.length) {
+            for (const ing of receta.ingredientes) {
+              await db.insumos.update({ _id: ing.insumo_id }, { $inc: { stock: -(ing.cantidad * item.cantidad) } })
+            }
+          }
+        }
+
+        // ── Chelada: descontar ingredientes y vasos enlazados ──────────────
+        if (item.es_chelada && item.detalle) {
+          const { sabor, bebida, adiciones } = item.detalle
+
+          // Descontar frutas/comidas enlazadas al sabor vendido
+          if (sabor?.id) {
+            const todosIngredientes = await db.productos.find({ activo: true })
+            const ingredientes = todosIngredientes.filter(p =>
+              p.tipo === 'sabor' &&
+              Array.isArray(p.sabores_enlazados) && p.sabores_enlazados.includes(sabor.id)
+            )
+            for (const ing of ingredientes) {
+              const gramos = ing.porcion_venta || 100
+              await db.productos.update({ _id: ing._id }, { $inc: { stock: -(gramos * item.cantidad) } })
+            }
+          }
+
+          // Descontar vasos/objetos enlazados a la bebida vendida (1 unidad por vaso, no por enlace)
+          if (bebida?.id) {
+            const todosObjetos = await db.productos.find({ activo: true })
+            const vasos = todosObjetos.filter(p =>
+              (p.tipo === 'objeto' || p.tipo === 'bebida') &&
+              Array.isArray(p.bebidas_enlazadas) && p.bebidas_enlazadas.includes(bebida.id)
+            )
+            // Descontar exactamente 1 unidad por producto enlazado (no por cantidad de enlaces)
+            const vasosUnicos = [...new Map(vasos.map(v => [v._id, v])).values()]
+            for (const vaso of vasosUnicos) {
+              await db.productos.update({ _id: vaso._id }, { $inc: { stock: -item.cantidad } })
+            }
+          }
+
+          // Descontar ingredientes enlazados a las adiciones seleccionadas
+          if (adiciones?.length) {
+            const todosIngredientesAd = await db.productos.find({ tipo: 'comida', activo: true })
+            for (const adicion of adiciones) {
+              const ingredientesAd = todosIngredientesAd.filter(p =>
+                Array.isArray(p.adiciones_enlazadas) && p.adiciones_enlazadas.includes(adicion.id)
+              )
+              for (const ing of ingredientesAd) {
+                const gramos = ing.porcion_venta || 100
+                await db.productos.update({ _id: ing._id }, { $inc: { stock: -(gramos * item.cantidad) } })
+              }
+            }
           }
         }
       } else {
