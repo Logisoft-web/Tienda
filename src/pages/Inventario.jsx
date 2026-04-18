@@ -366,56 +366,45 @@ function SeccionProductos() {
                 <InputField type="number" value={form.iva_pct} onChange={e=>setForm({...form,iva_pct:e.target.value})}/>
               </Field>
               <Field label="Unidad">
-                <select value={form.unidad} onChange={e => {
-                  const unidad = e.target.value
-                  setForm(f => {
-                    // Para comida: convertir stock a gramos según la unidad seleccionada
-                    if (f.tipo === 'comida' && +f.stock > 0) {
-                      const gramos = unidad === 'libra' ? 500 : unidad === 'kilogramo' ? 1000 : unidad === 'oz' ? 28.35 : 1
-                      return { ...f, unidad, stock: String(Math.round(+f.stock * gramos)) }
-                    }
-                    return { ...f, unidad }
-                  })
-                }}
-                  className="focus:outline-none w-full rounded-xl text-sm appearance-none"
-                  style={{ ...ic }}>
-                  {(UNIDADES_POR_TIPO[form.tipo] || TODAS_UNIDADES).map(u=>(
-                    <option key={u.value} value={u.value}>{u.label}</option>
-                  ))}
-                </select>
+                <div className="flex gap-1.5 items-center">
+                  <select value={form.unidad} onChange={e => {
+                    const unidad = e.target.value
+                    setForm(f => {
+                      if (f.tipo === 'comida' && +f.stock > 0) {
+                        const gramos = unidad === 'libra' ? 500 : unidad === 'kilogramo' ? 1000 : unidad === 'oz' ? 28.35 : 1
+                        return { ...f, unidad, stock: String(Math.round(+f.stock * gramos)) }
+                      }
+                      return { ...f, unidad }
+                    })
+                  }}
+                    className="focus:outline-none flex-1 rounded-xl text-sm appearance-none"
+                    style={{ ...ic }}>
+                    {(UNIDADES_POR_TIPO[form.tipo] || TODAS_UNIDADES).map(u=>(
+                      <option key={u.value} value={u.value}>{u.label}</option>
+                    ))}
+                  </select>
+                  {/* Convertidor rápido solo para comida */}
+                  {form.tipo === 'comida' && (
+                    <input type="number" min="0" step="0.5" placeholder="0"
+                      className="w-16 px-2 py-2 rounded-xl text-sm font-bold text-center focus:outline-none shrink-0"
+                      style={{ background:'var(--bg-raised)', border:'2px solid var(--primary)', color:'var(--primary)' }}
+                      title={`Cantidad en ${form.unidad === 'libra' ? 'libras' : form.unidad === 'kilogramo' ? 'kilos' : form.unidad === 'oz' ? 'onzas' : 'unidades'}`}
+                      onChange={e => {
+                        const cant = +e.target.value
+                        const gramos = form.unidad === 'libra' ? 500 : form.unidad === 'kilogramo' ? 1000 : form.unidad === 'oz' ? 28.35 : 1
+                        setForm(f => ({ ...f, stock: String(Math.round(cant * gramos)) }))
+                      }} />
+                  )}
+                </div>
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label={form.tipo === 'comida' ? 'Stock inicial (gramos)' : 'Stock inicial'}>
-                {/* Convertidor rápido solo para comida */}
-                {form.tipo === 'comida' && (
-                  <div className="mb-2 rounded-xl p-2.5 flex items-center gap-2"
-                    style={{ background:'rgba(244,98,42,0.06)', border:'1px solid var(--border)' }}>
-                    <span className="text-xs font-semibold shrink-0" style={{ color:'var(--text-muted)' }}>
-                      {form.unidad === 'libra' ? 'Libras' : form.unidad === 'kilogramo' ? 'Kilos' : form.unidad === 'oz' ? 'Onzas' : 'Cantidad'}
-                    </span>
-                    <input type="number" min="0" step="0.5" placeholder="0"
-                      className="flex-1 px-2 py-1 rounded-lg text-sm font-bold text-center focus:outline-none w-16"
-                      style={{ background:'var(--bg-card)', border:'1px solid var(--border)', color:'var(--primary)' }}
-                      onChange={e => {
-                        const cant = +e.target.value
-                        const gramos = form.unidad === 'libra' ? 500
-                          : form.unidad === 'kilogramo' ? 1000
-                          : form.unidad === 'oz' ? 28.35
-                          : 1
-                        setForm(f => ({ ...f, stock: String(Math.round(cant * gramos)) }))
-                      }} />
-                    <span className="text-xs shrink-0" style={{ color:'var(--text-dim)' }}>→</span>
-                    <span className="text-xs font-bold shrink-0" style={{ color:'var(--success)' }}>
-                      {form.stock || 0}g
-                    </span>
-                  </div>
-                )}
                 <InputField type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})}
-                  placeholder={form.tipo === 'comida' ? 'ej: 500 (1 libra)' : '0'}/>
+                  placeholder={form.tipo === 'comida' ? 'ej: 500' : '0'}/>
                 {form.tipo === 'comida' && +form.stock > 0 && (
                   <p className="text-xs mt-1" style={{ color:'var(--text-muted)' }}>
-                    = {+form.stock >= 1000 ? `${(+form.stock/1000).toFixed(2)} kg` : `${form.stock}g`}
+                    {+form.stock >= 1000 ? `${(+form.stock/1000).toFixed(2)} kg` : `${form.stock}g`}
                     {' · '}{Math.floor(+form.stock / (form.porcion_venta || 100))} porciones de {form.porcion_venta || 100}g
                   </p>
                 )}
