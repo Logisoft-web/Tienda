@@ -2,7 +2,15 @@
  * Seed de productos Enjoy Cheladas según carta oficial
  * Ejecutar: node seed-productos.js
  */
-import { db } from './db.js'
+import Datastore from 'nedb-promises'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const dir = join(__dirname, 'data')
+const db = {
+  productos: Datastore.create({ filename: join(dir, 'productos.db'), autoload: true })
+}
 
 const PRODUCTOS = [
   // ── CHELADAS BASE (Canada Dry 22oz) ──────────────────────────
