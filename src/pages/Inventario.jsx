@@ -221,9 +221,11 @@ function SeccionProductos() {
             <div className="flex items-center justify-between">
               <span className="text-xl font-bold"
                 style={{ color: p.stock===0 ? 'var(--danger)' : p.stock<=p.stock_minimo ? 'var(--warning)' : 'var(--success)' }}>
-                {p.stock}
+                {p.tipo === 'comida' ? `${p.stock}g` : p.stock}
                 <span className="text-xs font-normal ml-1" style={{ color:'var(--text-muted)' }}>
-                  {TODAS_UNIDADES.find(u=>u.value===p.unidad)?.label || p.unidad}
+                  {p.tipo === 'comida'
+                    ? `(${p.porcion_venta || 100}g por porción)`
+                    : TODAS_UNIDADES.find(u=>u.value===p.unidad)?.label || p.unidad}
                 </span>
               </span>
               <div className="text-right">
@@ -364,7 +366,17 @@ function SeccionProductos() {
                 <InputField type="number" value={form.iva_pct} onChange={e=>setForm({...form,iva_pct:e.target.value})}/>
               </Field>
               <Field label="Unidad">
-                <select value={form.unidad} onChange={e=>setForm({...form,unidad:e.target.value})}
+                <select value={form.unidad} onChange={e => {
+                  const unidad = e.target.value
+                  setForm(f => {
+                    // Para comida: convertir stock a gramos según la unidad seleccionada
+                    if (f.tipo === 'comida' && +f.stock > 0) {
+                      const gramos = unidad === 'libra' ? 500 : unidad === 'kilogramo' ? 1000 : unidad === 'oz' ? 28.35 : 1
+                      return { ...f, unidad, stock: String(Math.round(+f.stock * gramos)) }
+                    }
+                    return { ...f, unidad }
+                  })
+                }}
                   className="focus:outline-none w-full rounded-xl text-sm appearance-none"
                   style={{ ...ic }}>
                   {(UNIDADES_POR_TIPO[form.tipo] || TODAS_UNIDADES).map(u=>(
@@ -374,10 +386,17 @@ function SeccionProductos() {
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Stock inicial">
-                <InputField type="number" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/>
+              <Field label={form.tipo === 'comida' ? 'Stock inicial (gramos)' : 'Stock inicial'}>
+                <InputField type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})}
+                  placeholder={form.tipo === 'comida' ? 'ej: 500 (1 libra)' : '0'}/>
+                {form.tipo === 'comida' && +form.stock > 0 && (
+                  <p className="text-xs mt-1" style={{ color:'var(--text-muted)' }}>
+                    = {+form.stock >= 1000 ? `${(+form.stock/1000).toFixed(2)} kg` : `${form.stock}g`}
+                    {' · '}{Math.floor(+form.stock / (form.porcion_venta || 100))} porciones de {form.porcion_venta || 100}g
+                  </p>
+                )}
               </Field>
-              <Field label="Stock mínimo">
+              <Field label={form.tipo === 'comida' ? 'Stock mínimo (gramos)' : 'Stock mínimo'}>
                 <InputField type="number" value={form.stock_minimo} onChange={e=>setForm({...form,stock_minimo:e.target.value})}/>
               </Field>
             </div>

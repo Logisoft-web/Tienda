@@ -332,7 +332,12 @@ app.post('/api/ventas', auth, async (req, res) => {
       await db.ventaItems.insert({ venta_id: venta._id, ...item, subtotal: item.precio_unitario * item.cantidad })
       if (!item.es_combo) {
         // Descontar stock del producto
-        await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -item.cantidad } })
+        // Para comida: descontar porcion_venta gramos por cada unidad vendida
+        const prod = await db.productos.findOne({ _id: item.producto_id })
+        const descuento = prod?.tipo === 'comida'
+          ? (prod.porcion_venta || 100) * item.cantidad
+          : item.cantidad
+        await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -descuento } })
         // Descontar insumos de la receta si existe
         const receta = await db.recetas.findOne({ producto_id: item.producto_id })
         if (receta?.ingredientes?.length) {
@@ -362,7 +367,11 @@ app.patch('/api/ventas/:id/cancelar', auth, adminOnly, async (req, res) => {
   await db.ventas.update({ _id: req.params.id }, { $set: { estado: 'cancelada' } })
   const items = await db.ventaItems.find({ venta_id: req.params.id })
   for (const item of items) {
-    await db.productos.update({ _id: item.producto_id }, { $inc: { stock: item.cantidad } })
+    const prod = await db.productos.findOne({ _id: item.producto_id })
+    const restaurar = prod?.tipo === 'comida'
+      ? (prod.porcion_venta || 100) * item.cantidad
+      : item.cantidad
+    await db.productos.update({ _id: item.producto_id }, { $inc: { stock: restaurar } })
     // Restaurar insumos
     const receta = await db.recetas.findOne({ producto_id: item.producto_id })
     if (receta?.ingredientes?.length) {
