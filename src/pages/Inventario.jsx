@@ -233,7 +233,7 @@ function SeccionProductos() {
                 {p.tipo === 'comida' ? `${p.stock}g` : p.stock}
                 <span className="text-xs font-normal ml-1" style={{ color:'var(--text-muted)' }}>
                   {p.tipo === 'comida'
-                    ? `(${p.porcion_venta || 100}g por porción)`
+                    ? `· ${Math.floor(p.stock / (p.porcion_venta || 100))} porciones de ${p.porcion_venta || 100}g`
                     : TODAS_UNIDADES.find(u=>u.value===p.unidad)?.label || p.unidad}
                 </span>
               </span>
@@ -302,15 +302,7 @@ function SeccionProductos() {
               <Field label={form.tipo === 'comida' ? `Precio compra (total ${form.unidad || 'unidad'})` : 'Precio compra (por unidad)'}>
                 <InputField type="number" value={form.costo} onChange={e => {
                   const costo = e.target.value
-                  setForm(f => {
-                    if (f.tipo === 'comida' && +costo > 0) {
-                      const gramos = f.unidad === 'libra' ? 500 : f.unidad === 'kilogramo' ? 1000 : f.unidad === 'oz' ? 28.35 : 1
-                      const porcion = +(f.porcion_venta || 100)
-                      const precioVenta = Math.ceil((+costo / gramos) * porcion * 1.3)
-                      return { ...f, costo, precio: String(precioVenta) }
-                    }
-                    return { ...f, costo }
-                  })
+                  setForm(f => ({ ...f, costo }))
                 }}/>
                 {form.tipo === 'comida' && +form.costo > 0 && (
                   <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
