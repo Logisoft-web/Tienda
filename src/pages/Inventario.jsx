@@ -385,15 +385,19 @@ function SeccionProductos() {
                   </select>
                   {/* Convertidor rápido solo para comida */}
                   {form.tipo === 'comida' && (
-                    <input type="number" min="0" step="0.5" placeholder="0"
-                      className="w-16 px-2 py-2 rounded-xl text-sm font-bold text-center focus:outline-none shrink-0"
-                      style={{ background:'var(--bg-raised)', border:'2px solid var(--primary)', color:'var(--primary)' }}
-                      title={`Cantidad en ${form.unidad === 'libra' ? 'libras' : form.unidad === 'kilogramo' ? 'kilos' : form.unidad === 'oz' ? 'onzas' : 'unidades'}`}
-                      onChange={e => {
-                        const cant = +e.target.value
-                        const gramos = form.unidad === 'libra' ? 500 : form.unidad === 'kilogramo' ? 1000 : form.unidad === 'oz' ? 28.35 : 1
-                        setForm(f => ({ ...f, stock: String(Math.round(cant * gramos)) }))
-                      }} />
+                    <div className="flex flex-col items-center shrink-0">
+                      <span className="text-xs font-bold mb-0.5" style={{ color:'var(--primary)' }}>
+                        {form.unidad === 'libra' ? 'Libras' : form.unidad === 'kilogramo' ? 'Kilos' : form.unidad === 'oz' ? 'Onzas' : 'Cant.'}
+                      </span>
+                      <input type="number" min="0" step="0.5" placeholder="0"
+                        className="w-16 px-2 py-2 rounded-xl text-sm font-bold text-center focus:outline-none"
+                        style={{ background:'var(--bg-raised)', border:'2px solid var(--primary)', color:'var(--primary)' }}
+                        onChange={e => {
+                          const cant = +e.target.value
+                          const gramos = form.unidad === 'libra' ? 500 : form.unidad === 'kilogramo' ? 1000 : form.unidad === 'oz' ? 28.35 : 1
+                          setForm(f => ({ ...f, stock: String(Math.round(cant * gramos)) }))
+                        }} />
+                    </div>
                   )}
                 </div>
               </Field>
