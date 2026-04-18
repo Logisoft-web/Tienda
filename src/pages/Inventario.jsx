@@ -2,22 +2,59 @@
 import { api } from '../services/api'
 import { Plus, Edit2, Trash2, Package, AlertTriangle, Search, X, ShoppingBag, Layers, Upload } from 'lucide-react'
 
-const UNIDADES = [
-  { value: 'unidad', label: 'Unidad (und)' }, { value: 'pieza', label: 'Pieza (pza)' },
-  { value: 'docena', label: 'Docena (12 und)' }, { value: 'media_docena', label: 'Media docena (6 und)' },
-  { value: 'par', label: 'Par (2 und)' }, { value: 'caja', label: 'Caja' },
-  { value: 'paquete', label: 'Paquete' }, { value: 'bolsa', label: 'Bolsa' },
-  { value: 'vaso', label: 'Vaso' }, { value: 'botella', label: 'Botella' },
-  { value: 'lata', label: 'Lata' }, { value: 'porcion', label: 'Porción' },
-  { value: 'gramo', label: 'Gramo (g)' }, { value: 'kilogramo', label: 'Kilogramo (kg)' },
-  { value: 'libra', label: 'Libra (500 g)' }, { value: 'arroba', label: 'Arroba (12.5 kg)' },
-  { value: 'ml', label: 'Mililitro (ml)' }, { value: 'litro', label: 'Litro (L)' },
-  { value: 'oz', label: 'Onza (oz)' },
+// Tipos de producto con sus unidades específicas
+const TIPOS_PRODUCTO = [
+  { value: 'bebida',   label: 'Bebida',    emoji: '🍺', desc: 'Cheladas, refrescos, jugos' },
+  { value: 'comida',   label: 'Comida',    emoji: '🍓', desc: 'Frutas, ingredientes, alimentos' },
+  { value: 'objeto',   label: 'Objeto',    emoji: '📦', desc: 'Vasos, pitillos, empaques' },
+  { value: 'servicio', label: 'Servicio',  emoji: '⚡', desc: 'Adiciones, extras, servicios' },
 ]
+
+const UNIDADES_POR_TIPO = {
+  bebida: [
+    { value: 'unidad',   label: 'Unidad (und)' },
+    { value: 'vaso',     label: 'Vaso' },
+    { value: 'botella',  label: 'Botella' },
+    { value: 'lata',     label: 'Lata' },
+    { value: 'litro',    label: 'Litro (L)' },
+    { value: 'ml',       label: 'Mililitro (ml)' },
+    { value: 'oz',       label: 'Onza (oz)' },
+  ],
+  comida: [
+    { value: 'unidad',     label: 'Unidad (und)' },
+    { value: 'gramo',      label: 'Gramo (g)' },
+    { value: 'kilogramo',  label: 'Kilogramo (kg)' },
+    { value: 'libra',      label: 'Libra (500 g)' },
+    { value: 'arroba',     label: 'Arroba (12.5 kg)' },
+    { value: 'porcion',    label: 'Porción' },
+    { value: 'bolsa',      label: 'Bolsa' },
+    { value: 'caja',       label: 'Caja' },
+  ],
+  objeto: [
+    { value: 'unidad',       label: 'Unidad (und)' },
+    { value: 'pieza',        label: 'Pieza (pza)' },
+    { value: 'docena',       label: 'Docena (12 und)' },
+    { value: 'media_docena', label: 'Media docena (6 und)' },
+    { value: 'par',          label: 'Par (2 und)' },
+    { value: 'caja',         label: 'Caja' },
+    { value: 'paquete',      label: 'Paquete' },
+    { value: 'bolsa',        label: 'Bolsa' },
+    { value: 'rollo',        label: 'Rollo' },
+  ],
+  servicio: [
+    { value: 'unidad',   label: 'Unidad (und)' },
+    { value: 'porcion',  label: 'Porción' },
+    { value: 'servicio', label: 'Servicio' },
+  ],
+}
+
+// Todas las unidades (para edición de productos existentes sin tipo)
+const TODAS_UNIDADES = Object.values(UNIDADES_POR_TIPO).flat()
+  .filter((u, i, a) => a.findIndex(x => x.value === u.value) === i)
 
 const genCodigo = () => `PRD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`
 const COMBO_ICONOS = ['🏷️','🍺','🥤','🍕','🧴','📦','🛒','⚡','🎯','🔥','❄️','🌿','🍫','🥩','🧀','🎁','🥗','🍔','☕','🧃']
-const emptyProducto = { nombre:'', codigo:'', codigo_barras:'', categoria:'', proveedor:'', costo:'0', precio:'0', iva_pct:'19', unidad:'unidad', stock:'0', stock_minimo:'5', descripcion:'', imagen:null }
+const emptyProducto = { nombre:'', codigo:'', codigo_barras:'', categoria:'', proveedor:'', costo:'0', precio:'0', iva_pct:'19', tipo:'bebida', unidad:'unidad', stock:'0', stock_minimo:'5', descripcion:'', imagen:null }
 const emptyCombo = { nombre:'', precio:'0', icono:'🎁', descripcion:'', items:[] }
 
 // Clases de input para tema claro
@@ -91,7 +128,7 @@ function SeccionProductos() {
   const abrirEditar = (p) => {
     setForm({ nombre:p.nombre, codigo:p.codigo||'', codigo_barras:p.codigo_barras||'', categoria:p.categoria||'',
       proveedor:p.proveedor||'', costo:p.costo??'0', precio:p.precio??'0', iva_pct:p.iva_pct??'0',
-      unidad:p.unidad||'unidad', stock:p.stock??'0', stock_minimo:p.stock_minimo??'5', descripcion:p.descripcion||'', imagen:p.imagen||null })
+      tipo:p.tipo||'bebida', unidad:p.unidad||'unidad', stock:p.stock??'0', stock_minimo:p.stock_minimo??'5', descripcion:p.descripcion||'', imagen:p.imagen||null })
     setEditId(p.id); setMsg(''); setShowNuevaCat(false); setModal('form')
   }
   const abrirStock = (p) => { setEditId(p.id); setStockForm({ cantidad:'', tipo:'entrada' }); setModal('stock') }
@@ -230,6 +267,26 @@ function SeccionProductos() {
       {modal==='form' && (
         <Modal title={editId?'Editar producto':'Nuevo producto'} onClose={()=>setModal(null)} wide>
           <div className="space-y-3">
+            {/* Selector de tipo */}
+            <Field label="Tipo de producto" required>
+              <div className="grid grid-cols-2 gap-2">
+                {TIPOS_PRODUCTO.map(t => (
+                  <button key={t.value} type="button"
+                    onClick={() => setForm(f => ({ ...f, tipo: t.value, unidad: UNIDADES_POR_TIPO[t.value][0].value }))}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all"
+                    style={{
+                      borderColor: form.tipo === t.value ? 'var(--primary)' : 'var(--border)',
+                      background: form.tipo === t.value ? 'rgba(244,98,42,0.08)' : 'var(--bg-raised)',
+                    }}>
+                    <span className="text-xl">{t.emoji}</span>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: form.tipo === t.value ? 'var(--primary)' : 'var(--text-primary)' }}>{t.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-dim)', fontSize: '10px' }}>{t.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Field>
             <Field label="Nombre" required>
               <InputField value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Nombre del producto"/>
             </Field>
@@ -262,7 +319,9 @@ function SeccionProductos() {
                 <select value={form.unidad} onChange={e=>setForm({...form,unidad:e.target.value})}
                   className="focus:outline-none w-full rounded-xl text-sm appearance-none"
                   style={{ ...ic }}>
-                  {UNIDADES.map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
+                  {(UNIDADES_POR_TIPO[form.tipo] || TODAS_UNIDADES).map(u=>(
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
                 </select>
               </Field>
             </div>
