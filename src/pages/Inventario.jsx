@@ -366,7 +366,7 @@ function SeccionProductos() {
                 <InputField type="number" value={form.iva_pct} onChange={e=>setForm({...form,iva_pct:e.target.value})}/>
               </Field>
               <Field label="Unidad">
-                <div className="flex gap-1.5 items-center">
+                <div className="flex gap-1.5 items-end">
                   <select value={form.unidad} onChange={e => {
                     const unidad = e.target.value
                     setForm(f => {
@@ -383,12 +383,11 @@ function SeccionProductos() {
                       <option key={u.value} value={u.value}>{u.label}</option>
                     ))}
                   </select>
-                  {/* Convertidor rápido solo para comida */}
                   {form.tipo === 'comida' && (
-                    <div className="flex flex-col items-center shrink-0">
-                      <span className="text-xs font-bold mb-0.5" style={{ color:'var(--primary)' }}>
+                    <div className="shrink-0">
+                      <p className="text-xs font-bold mb-1 text-center" style={{ color:'var(--primary)' }}>
                         {form.unidad === 'libra' ? 'Libras' : form.unidad === 'kilogramo' ? 'Kilos' : form.unidad === 'oz' ? 'Onzas' : 'Cant.'}
-                      </span>
+                      </p>
                       <input type="number" min="0" step="0.5" placeholder="0"
                         className="w-16 px-2 py-2 rounded-xl text-sm font-bold text-center focus:outline-none"
                         style={{ background:'var(--bg-raised)', border:'2px solid var(--primary)', color:'var(--primary)' }}
