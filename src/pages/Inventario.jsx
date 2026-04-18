@@ -38,7 +38,7 @@ const TODAS_UNIDADES = Object.values(UNIDADES_POR_TIPO).flat()
 
 const genCodigo = () => `PRD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`
 const COMBO_ICONOS = ['🏷️','🍺','🥤','🍕','🧴','📦','🛒','⚡','🎯','🔥','❄️','🌿','🍫','🥩','🧀','🎁','🥗','🍔','☕','🧃']
-const emptyProducto = { nombre:'', codigo:'', codigo_barras:'', categoria:'', proveedor:'', costo:'0', precio:'0', iva_pct:'19', tipo:'bebida', unidad:'unidad', stock:'0', stock_minimo:'5', descripcion:'', imagen:null }
+const emptyProducto = { nombre:'', codigo:'', codigo_barras:'', categoria:'', proveedor:'', costo:'0', precio:'0', iva_pct:'19', tipo:'bebida', unidad:'unidad', porcion_venta:100, stock:'0', stock_minimo:'5', descripcion:'', imagen:null }
 const emptyCombo = { nombre:'', precio:'0', icono:'🎁', descripcion:'', items:[] }
 
 // Clases de input para tema claro
@@ -112,7 +112,7 @@ function SeccionProductos() {
   const abrirEditar = (p) => {
     setForm({ nombre:p.nombre, codigo:p.codigo||'', codigo_barras:p.codigo_barras||'', categoria:p.categoria||'',
       proveedor:p.proveedor||'', costo:p.costo??'0', precio:p.precio??'0', iva_pct:p.iva_pct??'0',
-      tipo:p.tipo||'bebida', unidad:p.unidad||'unidad', stock:p.stock??'0', stock_minimo:p.stock_minimo??'5', descripcion:p.descripcion||'', imagen:p.imagen||null })
+      tipo:p.tipo||'bebida', unidad:p.unidad||'unidad', porcion_venta:p.porcion_venta||100, stock:p.stock??'0', stock_minimo:p.stock_minimo??'5', descripcion:p.descripcion||'', imagen:p.imagen||null })
     setEditId(p.id); setMsg(''); setShowNuevaCat(false); setModal('form')
   }
   const abrirStock = (p) => { setEditId(p.id); setStockForm({ cantidad:'', tipo:'entrada' }); setModal('stock') }
@@ -131,7 +131,7 @@ function SeccionProductos() {
     if (!+form.precio || +form.precio <= 0) { setMsg('Precio de venta requerido'); return }
     setLoading(true)
     try {
-      const data = { ...form, costo:+(form.costo||0), precio:+(form.precio||0), iva_pct:+(form.iva_pct||0), stock:+(form.stock||0), stock_minimo:+(form.stock_minimo||5) }
+      const data = { ...form, costo:+(form.costo||0), precio:+(form.precio||0), iva_pct:+(form.iva_pct||0), stock:+(form.stock||0), stock_minimo:+(form.stock_minimo||5), porcion_venta:+(form.porcion_venta||100) }
       if (editId) await api.updateProducto(editId, { ...data, activo:true })
       else await api.createProducto(data)
       await cargar(); setModal(null)
@@ -292,15 +292,11 @@ function SeccionProductos() {
                 <InputField type="number" value={form.costo} onChange={e => {
                   const costo = e.target.value
                   setForm(f => {
-                    // Para comida: calcular precio venta por gramo automáticamente
                     if (f.tipo === 'comida' && +costo > 0) {
-                      const gramos = f.unidad === 'libra' ? 500
-                        : f.unidad === 'kilogramo' ? 1000
-                        : f.unidad === 'oz' ? 28.35
-                        : f.unidad === 'gramo' ? 1
-                        : 1
-                      const precioGramo = gramos > 1 ? Math.ceil((+costo / gramos) * 1.3) : +costo
-                      return { ...f, costo, precio: String(precioGramo) }
+                      const gramos = f.unidad === 'libra' ? 500 : f.unidad === 'kilogramo' ? 1000 : f.unidad === 'oz' ? 28.35 : 1
+                      const porcion = +(f.porcion_venta || 100)
+                      const precioVenta = Math.ceil((+costo / gramos) * porcion * 1.3)
+                      return { ...f, costo, precio: String(precioVenta) }
                     }
                     return { ...f, costo }
                   })
@@ -311,15 +307,58 @@ function SeccionProductos() {
                   </p>
                 )}
               </Field>
-              <Field label={form.tipo === 'comida' ? `Precio venta (por ${form.unidad === 'libra' || form.unidad === 'kilogramo' ? 'gramo' : form.unidad})` : 'Precio venta (por unidad)'} required>
+              <Field label={form.tipo === 'comida' ? 'Precio venta (calculado)' : 'Precio venta (por unidad)'} required>
                 <InputField type="number" value={form.precio} onChange={e=>setForm({...form,precio:e.target.value})}/>
-                {form.tipo === 'comida' && +form.precio > 0 && (
-                  <p className="text-xs mt-1" style={{ color: 'var(--primary)' }}>
-                    Libra ≈ ${(+form.precio * 500).toLocaleString('es-CO')}
-                  </p>
-                )}
               </Field>
             </div>
+
+            {/* Porción de venta — solo para comida */}
+            {form.tipo === 'comida' && (
+              <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
+                <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>⚖️ Porción de venta</p>
+                <p className="text-xs" style={{ color:'var(--text-muted)' }}>¿Cuántos gramos vas a vender por unidad?</p>
+                <div className="flex items-center gap-2">
+                  <input type="range" min="10" max="2000" step="10"
+                    value={form.porcion_venta || 100}
+                    onChange={e => {
+                      const porcion = +e.target.value
+                      setForm(f => {
+                        const gramos = f.unidad === 'libra' ? 500 : f.unidad === 'kilogramo' ? 1000 : f.unidad === 'oz' ? 28.35 : 1
+                        const precioVenta = +f.costo > 0 ? Math.ceil((+f.costo / gramos) * porcion * 1.3) : +f.precio
+                        return { ...f, porcion_venta: porcion, precio: String(precioVenta) }
+                      })
+                    }}
+                    className="flex-1 accent-orange-500" />
+                  <div className="text-center shrink-0 w-20 px-2 py-1.5 rounded-lg font-bold text-sm"
+                    style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--primary)' }}>
+                    {form.porcion_venta || 100}g
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[50, 100, 250, 500, 1000].map(g => (
+                    <button key={g} type="button"
+                      onClick={() => setForm(f => {
+                        const gramos = f.unidad === 'libra' ? 500 : f.unidad === 'kilogramo' ? 1000 : f.unidad === 'oz' ? 28.35 : 1
+                        const precioVenta = +f.costo > 0 ? Math.ceil((+f.costo / gramos) * g * 1.3) : +f.precio
+                        return { ...f, porcion_venta: g, precio: String(precioVenta) }
+                      })}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                      style={{
+                        background: (form.porcion_venta || 100) === g ? 'var(--primary)' : 'var(--bg-raised)',
+                        color: (form.porcion_venta || 100) === g ? '#fff' : 'var(--text-muted)',
+                        border: '1px solid var(--border)'
+                      }}>
+                      {g}g
+                    </button>
+                  ))}
+                </div>
+                {+form.costo > 0 && (
+                  <p className="text-xs font-semibold" style={{ color:'var(--success)' }}>
+                    Precio sugerido: ${(Math.ceil((+form.costo / (form.unidad === 'libra' ? 500 : form.unidad === 'kilogramo' ? 1000 : form.unidad === 'oz' ? 28.35 : 1)) * (form.porcion_venta || 100) * 1.3)).toLocaleString('es-CO')} por {form.porcion_venta || 100}g
+                  </p>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Field label="IVA %">
                 <InputField type="number" value={form.iva_pct} onChange={e=>setForm({...form,iva_pct:e.target.value})}/>
