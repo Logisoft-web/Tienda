@@ -387,6 +387,30 @@ function SeccionProductos() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label={form.tipo === 'comida' ? 'Stock inicial (gramos)' : 'Stock inicial'}>
+                {/* Convertidor rápido solo para comida */}
+                {form.tipo === 'comida' && (
+                  <div className="mb-2 rounded-xl p-2.5 flex items-center gap-2"
+                    style={{ background:'rgba(244,98,42,0.06)', border:'1px solid var(--border)' }}>
+                    <span className="text-xs font-semibold shrink-0" style={{ color:'var(--text-muted)' }}>
+                      {form.unidad === 'libra' ? 'Libras' : form.unidad === 'kilogramo' ? 'Kilos' : form.unidad === 'oz' ? 'Onzas' : 'Cantidad'}
+                    </span>
+                    <input type="number" min="0" step="0.5" placeholder="0"
+                      className="flex-1 px-2 py-1 rounded-lg text-sm font-bold text-center focus:outline-none w-16"
+                      style={{ background:'var(--bg-card)', border:'1px solid var(--border)', color:'var(--primary)' }}
+                      onChange={e => {
+                        const cant = +e.target.value
+                        const gramos = form.unidad === 'libra' ? 500
+                          : form.unidad === 'kilogramo' ? 1000
+                          : form.unidad === 'oz' ? 28.35
+                          : 1
+                        setForm(f => ({ ...f, stock: String(Math.round(cant * gramos)) }))
+                      }} />
+                    <span className="text-xs shrink-0" style={{ color:'var(--text-dim)' }}>→</span>
+                    <span className="text-xs font-bold shrink-0" style={{ color:'var(--success)' }}>
+                      {form.stock || 0}g
+                    </span>
+                  </div>
+                )}
                 <InputField type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})}
                   placeholder={form.tipo === 'comida' ? 'ej: 500 (1 libra)' : '0'}/>
                 {form.tipo === 'comida' && +form.stock > 0 && (
