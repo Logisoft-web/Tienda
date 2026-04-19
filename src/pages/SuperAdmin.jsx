@@ -68,10 +68,10 @@ export default function SuperAdmin() {
   }
 
   const eliminarUsuario = async (userId, nombre) => {
-    if (!confirm(`¿Eliminar permanentemente a "${nombre}"? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar PERMANENTEMENTE a "${nombre}"? Esta acción no se puede deshacer.`)) return
     try {
-      await api.deleteUsuario(userId)
-      mostrarMsg('Usuario eliminado')
+      await api.superAdminEliminarUsuario(userId)
+      mostrarMsg('Usuario eliminado permanentemente')
       cargar()
     } catch (e) { mostrarMsg(e.message, 'error') }
   }

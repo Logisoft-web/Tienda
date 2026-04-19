@@ -1166,7 +1166,15 @@ app.put('/api/superadmin/usuarios/:id/password', auth, superAdminOnly, async (re
   res.json({ ok: true })
 })
 
-// Verificar plan al hacer login — bloquear si expiró
+// Eliminar usuario permanentemente (solo superadmin)
+app.delete('/api/superadmin/usuarios/:id', auth, superAdminOnly, async (req, res) => {
+  if (req.params.id === req.user.id) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' })
+  const user = await db.usuarios.findOne({ _id: req.params.id })
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
+  if (user.rol === 'superadmin') return res.status(400).json({ error: 'No se puede eliminar otro superadmin' })
+  await db.usuarios.remove({ _id: req.params.id }, {})
+  res.json({ ok: true })
+})
 const checkPlan = async (req, res, next) => {
   if (req.user.rol === 'superadmin') return next()
   const user = await db.usuarios.findOne({ _id: req.user.id })

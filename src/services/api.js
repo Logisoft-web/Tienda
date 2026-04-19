@@ -141,6 +141,7 @@ export const api = {
   superAdminAsignarPlan: (id, plan) => req('POST', `/superadmin/usuarios/${id}/plan`, { plan }),
   superAdminResetPlan: (id) => req('POST', `/superadmin/usuarios/${id}/reset-plan`),
   superAdminCambiarPassword: (id, password) => req('PUT', `/superadmin/usuarios/${id}/password`, { password }),
+  superAdminEliminarUsuario: (id) => req('DELETE', `/superadmin/usuarios/${id}`),
   superAdminLimpiarBD: () => req('POST', '/superadmin/limpiar-bd'),
   superAdminBackupDrive: () => req('POST', '/superadmin/backup-drive'),
   superAdminGetSesiones: (limit = 50) => req('GET', `/superadmin/sesiones?limit=${limit}`),

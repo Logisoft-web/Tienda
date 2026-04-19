@@ -81,9 +81,12 @@ export default function Usuarios() {
             <p className="text-sm text-gray-500">@{u.usuario}</p>
 
             <div className="flex items-center gap-2 mt-3">
-              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${u.rol === 'admin' ? 'bg-primary/10 text-primary' : 'bg-blue-50 text-blue-600'}`}>
-                {u.rol === 'admin' ? <Shield size={11} /> : <User size={11} />}
-                {u.rol === 'admin' ? 'Administrador' : 'Cajero'}
+              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                u.rol === 'superadmin' ? 'bg-purple-100 text-purple-700' :
+                u.rol === 'admin' ? 'bg-primary/10 text-primary' : 'bg-blue-50 text-blue-600'
+              }`}>
+                {u.rol === 'superadmin' ? <Shield size={11} /> : u.rol === 'admin' ? <Shield size={11} /> : <User size={11} />}
+                {u.rol === 'superadmin' ? 'Super Admin' : u.rol === 'admin' ? 'Administrador' : 'Cajero'}
               </span>
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.activo ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
                 {u.activo ? 'Activo' : 'Inactivo'}
