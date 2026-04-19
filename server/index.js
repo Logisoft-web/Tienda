@@ -106,6 +106,21 @@ app.post('/api/auth/login', rateLimit(10, 5 * 60 * 1000), async (req, res) => {
     if (!user || !bcrypt.compareSync(String(password), user.password))
       return res.status(401).json({ error: 'Credenciales incorrectas' })
     const token = jwt.sign({ id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol }, JWT_SECRET, { expiresIn: '12h' })
+
+    // Registrar sesión con IP y User-Agent
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'desconocida'
+    const ua = req.headers['user-agent'] || 'desconocido'
+    await db.sesiones.insert({
+      usuario_id: user._id, usuario: user.usuario, nombre: user.nombre, rol: user.rol,
+      ip, user_agent: ua, creado_en: now()
+    })
+    // Conservar solo los últimos 200 registros
+    const total = await db.sesiones.count({})
+    if (total > 200) {
+      const viejas = await db.sesiones.find({}).sort({ creado_en: 1 }).limit(total - 200)
+      for (const v of viejas) await db.sesiones.remove({ _id: v._id }, {})
+    }
+
     res.json({ token, user: { id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol } })
   } catch (e) { res.status(500).json({ error: 'Error interno del servidor' }) }
 })
@@ -1084,6 +1099,13 @@ app.get('/api/reportes/contable-mensual', auth, adminOnly, async (req, res) => {
     .sort((a, b) => b.valor - a.valor)
 
   res.json({ meses: resultado.reverse(), valorInventario, detalleInventario })
+})
+
+// Ver sesiones / accesos recientes
+app.get('/api/superadmin/sesiones', auth, adminOrSuper, async (req, res) => {
+  const { limit = 50 } = req.query
+  const sesiones = await db.sesiones.find({}).sort({ creado_en: -1 }).limit(+limit)
+  res.json(sesiones.map(s => ({ ...s, id: s._id })))
 })
 
 // ── SUPERADMIN ────────────────────────────────────────────────────────────────

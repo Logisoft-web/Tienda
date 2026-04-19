@@ -143,5 +143,6 @@ export const api = {
   superAdminCambiarPassword: (id, password) => req('PUT', `/superadmin/usuarios/${id}/password`, { password }),
   superAdminLimpiarBD: () => req('POST', '/superadmin/limpiar-bd'),
   superAdminBackupDrive: () => req('POST', '/superadmin/backup-drive'),
+  superAdminGetSesiones: (limit = 50) => req('GET', `/superadmin/sesiones?limit=${limit}`),
 }
 
