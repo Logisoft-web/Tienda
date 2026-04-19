@@ -135,8 +135,9 @@ export default function Usuarios() {
                 <select value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="cajero">Cajero</option>
-                  <option value="admin">Administrador</option>
+                  {(me.rol === 'superadmin') && <option value="admin">Administrador</option>}
                 </select>
+                {me.rol === 'admin' && <p className="text-xs text-gray-400 mt-1">Solo puedes crear cajeros</p>}
               </div>
               {editId && (
                 <div className="flex items-center gap-3">

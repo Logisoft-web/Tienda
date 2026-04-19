@@ -9,6 +9,7 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [gracia, setGracia] = useState(null)
   const { login } = useAuth()
   const navigate = useNavigate()
 
@@ -19,7 +20,12 @@ export default function Login() {
     try {
       const data = await api.login(form)
       login(data.token, data.user)
-      navigate('/')
+      if (data.planGracia !== null && data.planGracia !== undefined) {
+        setGracia(data.planGracia)
+        setTimeout(() => navigate('/'), 3000)
+      } else {
+        navigate('/')
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -131,6 +137,14 @@ export default function Login() {
                 style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)' }}>
                 <AlertCircle size={15} className="shrink-0" />
                 {error}
+              </div>
+            )}
+
+            {gracia !== null && (
+              <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl"
+                style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>
+                <AlertCircle size={15} className="shrink-0" />
+                ⚠️ Tu plan venció. Tienes {gracia} día{gracia !== 1 ? 's' : ''} de gracia. Redirigiendo...
               </div>
             )}
 

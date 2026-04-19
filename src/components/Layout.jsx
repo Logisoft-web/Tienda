@@ -32,6 +32,14 @@ export default function Layout() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const { needRefresh, setNeedRefresh, updateServiceWorker } = usePWA()
 
+  // Calcular días de gracia del plan
+  const diasGracia = (() => {
+    if (!user?.plan_expira || user.rol === 'superadmin') return null
+    const dias = Math.floor((new Date() - new Date(user.plan_expira)) / (1000 * 60 * 60 * 24))
+    if (dias > 0 && dias <= 5) return 5 - dias
+    return null
+  })()
+
   useEffect(() => {
     const on = () => setIsOnline(true)
     const off = () => setIsOnline(false)
@@ -71,6 +79,14 @@ export default function Layout() {
               <X size={15} />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Banner: plan en período de gracia */}
+      {diasGracia !== null && (
+        <div className="fixed top-0 left-0 right-0 z-[98] py-2 flex items-center justify-center gap-2 text-xs font-semibold"
+          style={{ background: '#fef3c7', color: '#92400e', borderBottom: '1px solid #fcd34d' }}>
+          ⚠️ Tu plan venció — {diasGracia} día{diasGracia !== 1 ? 's' : ''} de gracia restante{diasGracia !== 1 ? 's' : ''}. Contacta al administrador para renovar.
         </div>
       )}
 

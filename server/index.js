@@ -107,6 +107,13 @@ app.post('/api/auth/login', rateLimit(10, 5 * 60 * 1000), async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' })
     const token = jwt.sign({ id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol }, JWT_SECRET, { expiresIn: '12h' })
 
+    // Calcular días de gracia si el plan expiró
+    let planGracia = null
+    if (user.plan_expira) {
+      const diasVencido = Math.floor((new Date() - new Date(user.plan_expira)) / (1000 * 60 * 60 * 24))
+      if (diasVencido > 0 && diasVencido <= 5) planGracia = 5 - diasVencido
+    }
+
     // Registrar sesión con IP y User-Agent
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'desconocida'
     const ua = req.headers['user-agent'] || 'desconocido'
@@ -121,7 +128,7 @@ app.post('/api/auth/login', rateLimit(10, 5 * 60 * 1000), async (req, res) => {
       for (const v of viejas) await db.sesiones.remove({ _id: v._id }, {})
     }
 
-    res.json({ token, user: { id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol } })
+    res.json({ token, planGracia, user: { id: user._id, nombre: user.nombre, usuario: user.usuario, rol: user.rol } })
   } catch (e) { res.status(500).json({ error: 'Error interno del servidor' }) }
 })
 
@@ -133,18 +140,25 @@ const adminOrSuper = (req, res, next) => {
 
 app.get('/api/usuarios', auth, adminOrSuper, async (req, res) => {
   const rows = await db.usuarios.find({}).sort({ creado_en: 1 })
-  res.json(rows.map(u => ({ id: u._id, nombre: u.nombre, usuario: u.usuario, rol: u.rol, activo: u.activo, creado_en: u.creado_en })))
+  const todos = rows.map(u => ({ id: u._id, nombre: u.nombre, usuario: u.usuario, rol: u.rol, activo: u.activo, creado_en: u.creado_en }))
+  // Admin solo ve cajeros — no ve otros admins ni superadmin
+  if (req.user.rol === 'admin') {
+    return res.json(todos.filter(u => u.rol === 'cajero' || u.id === req.user.id))
+  }
+  res.json(todos)
 })
 
 app.post('/api/usuarios', auth, adminOrSuper, async (req, res) => {
   const { nombre, usuario, password, rol } = req.body
   if (!nombre?.trim() || !usuario?.trim() || !password) return res.status(400).json({ error: 'Faltan campos requeridos' })
   if (password.length < 6) return res.status(400).json({ error: 'Contraseña mínima 6 caracteres' })
-  if (!['admin', 'cajero'].includes(rol || 'cajero')) return res.status(400).json({ error: 'Rol inválido' })
+  // Admin solo puede crear cajeros
+  const rolFinal = req.user.rol === 'admin' ? 'cajero' : (rol || 'cajero')
+  if (!['admin', 'cajero'].includes(rolFinal)) return res.status(400).json({ error: 'Rol inválido' })
   try {
     const hash = bcrypt.hashSync(password, 10)
-    const doc = await db.usuarios.insert({ nombre: nombre.trim(), usuario: usuario.trim().toLowerCase(), password: hash, rol: rol || 'cajero', activo: true, creado_en: now() })
-    res.json({ id: doc._id, nombre: nombre.trim(), usuario: usuario.trim().toLowerCase(), rol: rol || 'cajero' })
+    const doc = await db.usuarios.insert({ nombre: nombre.trim(), usuario: usuario.trim().toLowerCase(), password: hash, rol: rolFinal, activo: true, creado_en: now() })
+    res.json({ id: doc._id, nombre: nombre.trim(), usuario: usuario.trim().toLowerCase(), rol: rolFinal })
   } catch { res.status(400).json({ error: 'El nombre de usuario ya existe' }) }
 })
 
@@ -1179,9 +1193,19 @@ const checkPlan = async (req, res, next) => {
   if (req.user.rol === 'superadmin') return next()
   const user = await db.usuarios.findOne({ _id: req.user.id })
   if (!user) return res.status(401).json({ error: 'Usuario no encontrado' })
-  if (user.plan_expira && new Date(user.plan_expira) < new Date()) {
-    await db.usuarios.update({ _id: req.user.id }, { $set: { activo: false } })
-    return res.status(403).json({ error: 'Plan expirado. Contacta al administrador.' })
+  if (user.plan_expira) {
+    const expira = new Date(user.plan_expira)
+    const ahora = new Date()
+    const diasVencido = Math.floor((ahora - expira) / (1000 * 60 * 60 * 24))
+    if (diasVencido > 5) {
+      // Pasó el período de gracia de 5 días — desactivar
+      await db.usuarios.update({ _id: req.user.id }, { $set: { activo: false } })
+      return res.status(403).json({ error: 'Plan expirado. Tu período de gracia terminó. Contacta al administrador para renovar.' })
+    }
+    if (diasVencido > 0) {
+      // Dentro del período de gracia — dejar pasar pero informar
+      req.planGracia = 5 - diasVencido
+    }
   }
   next()
 }
