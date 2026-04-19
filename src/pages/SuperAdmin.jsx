@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
-import { Shield, RefreshCw, Key, Calendar, CheckCircle, XCircle, Clock, Trash2, Database } from 'lucide-react'
+import { Shield, RefreshCw, Key, Calendar, CheckCircle, XCircle, Clock, Trash2, Database, CloudUpload } from 'lucide-react'
 
 const PLANES = [
   { id: '1mes',   label: '1 Mes',   dias: 30,  color: '#3b82f6' },
@@ -75,6 +75,16 @@ export default function SuperAdmin() {
     } catch (e) { mostrarMsg(e.message, 'error') }
   }
 
+  const [backupLoading, setBackupLoading] = useState(false)
+  const backupDrive = async () => {
+    setBackupLoading(true)
+    try {
+      const r = await api.superAdminBackupDrive()
+      mostrarMsg(r.mensaje || 'Backup subido a Drive correctamente')
+    } catch (e) { mostrarMsg(e.message, 'error') }
+    finally { setBackupLoading(false) }
+  }
+
   const cambiarPassword = async (userId) => {
     if (!nuevaPass || nuevaPass.length < 6) { mostrarMsg('Mínimo 6 caracteres', 'error'); return }
     try {
@@ -99,6 +109,11 @@ export default function SuperAdmin() {
           </div>
         </div>
         <div className="flex gap-2">
+          <button onClick={backupDrive} disabled={backupLoading}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 disabled:opacity-50">
+            <CloudUpload size={14} className={backupLoading ? 'animate-pulse' : ''} />
+            {backupLoading ? 'Subiendo...' : 'Backup Drive'}
+          </button>
           <button onClick={limpiarBD}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200">
             <Database size={14} /> Limpiar BD

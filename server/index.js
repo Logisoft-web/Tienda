@@ -1156,7 +1156,21 @@ const checkPlan = async (req, res, next) => {
   next()
 }
 
-// Limpiar BD — elimina ventas, inventario, caja, movimientos (conserva usuarios y config)
+// Backup manual a Google Drive
+app.post('/api/superadmin/backup-drive', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { execSync } = await import('child_process')
+    const fecha = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
+    const destino = `gdrive:Bk_enjoy/${fecha}`
+    execSync(`rclone copy /app/data ${destino} --config /app/rclone.conf --log-level INFO`, {
+      timeout: 60000,
+      stdio: 'pipe'
+    })
+    res.json({ ok: true, destino, mensaje: `Backup subido a Drive: ${destino}` })
+  } catch (e) {
+    res.status(500).json({ error: 'Error al subir backup: ' + (e.stderr?.toString() || e.message) })
+  }
+})
 app.post('/api/superadmin/limpiar-bd', auth, superAdminOnly, async (req, res) => {
   try {
     await db.ventas.remove({}, { multi: true })
