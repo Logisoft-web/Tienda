@@ -23,6 +23,8 @@ export default function Ventas() {
   const [montoRecibido, setMontoRecibido] = useState('')
   const [descuento, setDescuento] = useState(0)
   const [notas, setNotas] = useState('')
+  const [nombreCliente, setNombreCliente] = useState('')
+  const [docCliente, setDocCliente] = useState('')
   const [procesando, setProcesando] = useState(false)
   const [ticketData, setTicketData] = useState(null)
   const [config, setConfig] = useState({})
@@ -54,7 +56,7 @@ export default function Ventas() {
   }
 
   const quitarItem = (key) => setCarrito(prev => prev.filter(i => i._key !== key))
-  const limpiar = () => { setCarrito([]); setDescuento(0); setNotas(''); setMontoRecibido(''); setError('') }
+  const limpiar = () => { setCarrito([]); setDescuento(0); setNotas(''); setMontoRecibido(''); setError(''); setNombreCliente(''); setDocCliente('') }
 
   const subtotal = carrito.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
   const total = subtotal - descuento
@@ -69,9 +71,13 @@ export default function Ventas() {
         items: carrito.map(({ _key, ...rest }) => rest),
         metodo_pago: metodo,
         monto_recibido: parseFloat(montoRecibido||total),
-        descuento, notas
+        descuento, notas,
+        nombre_cliente: nombreCliente.trim() || null,
+        doc_cliente: docCliente.trim() || null,
       })
       setTicketData({ ...result, items: carrito, metodo, descuento, subtotal, total, cambio,
+        nombre_cliente: nombreCliente.trim() || null,
+        doc_cliente: docCliente.trim() || null,
         iva_pct: config.iva || 0,
         iva_monto: config.iva ? Math.round(total * config.iva / 100) : 0,
         mensaje: MENSAJES[Math.floor(Math.random() * MENSAJES.length)] })
@@ -246,6 +252,19 @@ export default function Ventas() {
             </div>
           )}
 
+          {/* Nombre y documento del cliente */}
+          <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
+            <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>👤 Cliente</p>
+            <input type="text" placeholder="Nombre del cliente *" value={nombreCliente}
+              onChange={e => setNombreCliente(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none font-semibold"
+              style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
+            <input type="text" placeholder="Documento (opcional)" value={docCliente}
+              onChange={e => setDocCliente(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-xs focus:outline-none"
+              style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
+          </div>
+
           <input type="text" placeholder="Notas (opcional)" value={notas}
             onChange={e => setNotas(e.target.value)}
             className="w-full px-3 py-2 rounded-xl text-xs focus:outline-none"
@@ -308,6 +327,14 @@ export default function Ventas() {
                     ['Pago', ticketData.metodo]].map(([k,v]) => (
                     <div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="capitalize">{v}</span></div>
                   ))}
+                  {ticketData.nombre_cliente && (
+                    <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-200 pt-1 mt-1">
+                      <span>Cliente</span><span>{ticketData.nombre_cliente}</span>
+                    </div>
+                  )}
+                  {ticketData.doc_cliente && (
+                    <div className="flex justify-between"><span className="text-gray-500">Doc.</span><span>{ticketData.doc_cliente}</span></div>
+                  )}
                 </div>
                 <div className="border-t border-dashed border-gray-300 pt-2 pb-2">
                   {ticketData.items.map((item, idx) => (
@@ -352,6 +379,13 @@ export default function Ventas() {
                   )}
                 </div>
                 <div className="border-t border-dashed border-gray-300 pt-2 text-center text-gray-400 space-y-0.5">
+                  {ticketData.nombre_cliente && (
+                    <div className="bg-orange-50 rounded-xl py-3 mb-2">
+                      <p className="text-xs text-gray-500 mb-0.5">Llamar a:</p>
+                      <p className="font-bold text-xl text-orange-600 uppercase tracking-wide">{ticketData.nombre_cliente}</p>
+                      {ticketData.doc_cliente && <p className="text-xs text-gray-400">Doc: {ticketData.doc_cliente}</p>}
+                    </div>
+                  )}
                   <p className="font-semibold text-gray-600">{ticketData.mensaje}</p>
                   <p>— Enjoy Cheladas POS —</p>
                 </div>
