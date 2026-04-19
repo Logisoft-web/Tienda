@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
-import { Shield, RefreshCw, Key, Calendar, CheckCircle, XCircle, Clock, Trash2, Database, CloudUpload } from 'lucide-react'
+import { Shield, RefreshCw, Key, Calendar, CheckCircle, XCircle, Clock, Trash2, Database, Upload } from 'lucide-react'
 
 const PLANES = [
   { id: '1mes',   label: '1 Mes',   dias: 30,  color: '#3b82f6' },
@@ -125,7 +125,7 @@ export default function SuperAdmin() {
           </button>
           <button onClick={backupDrive} disabled={backupLoading}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 disabled:opacity-50">
-            <CloudUpload size={14} className={backupLoading ? 'animate-pulse' : ''} />
+            <Upload size={14} className={backupLoading ? 'animate-pulse' : ''} />
             {backupLoading ? 'Subiendo...' : 'Backup Drive'}
           </button>
           <button onClick={limpiarBD}
