@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
-import { Download, BarChart2, TrendingUp, ShoppingCart, DollarSign, RefreshCw } from 'lucide-react'
+import { Download, BarChart2, TrendingUp, ShoppingCart, DollarSign, RefreshCw, BookOpen } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 
 const RANGOS = [
@@ -16,6 +16,8 @@ export default function Reportes() {
   const [rangoIdx, setRangoIdx] = useState(0)
   const [custom, setCustom] = useState({ desde: format(new Date(), 'yyyy-MM-dd'), hasta: format(new Date(), 'yyyy-MM-dd') })
   const [useCustom, setUseCustom] = useState(false)
+  const [contable, setContable] = useState(null)
+  const [tabActiva, setTabActiva] = useState('ventas') // 'ventas' | 'contable'
 
   const rango = useCustom ? custom : RANGOS[rangoIdx]
 
@@ -28,7 +30,15 @@ export default function Reportes() {
     finally { setLoading(false) }
   }
 
+  const cargarContable = async () => {
+    try {
+      const d = await api.getContableMensual(6)
+      setContable(d)
+    } catch (err) { console.error(err) }
+  }
+
   useEffect(() => { cargar() }, [rangoIdx, useCustom, custom.desde, custom.hasta])
+  useEffect(() => { cargarContable() }, [])
 
   const fmt = (n) => `$${Number(n || 0).toFixed(2)}`
   const maxCantidad = data?.topProductos?.[0]?.cantidad || 1
@@ -57,32 +67,45 @@ export default function Reportes() {
         </div>
       </div>
 
-      {/* Filtros de rango */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-6">
-        <div className="flex flex-wrap gap-2 mb-3">
-          {RANGOS.map((r, i) => (
-            <button key={i} onClick={() => { setRangoIdx(i); setUseCustom(false) }}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${!useCustom && rangoIdx === i ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {r.label}
-            </button>
-          ))}
-          <button onClick={() => setUseCustom(true)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${useCustom ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            Personalizado
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6">
+        {[['ventas','📊 Ventas'],['contable','📒 Contabilidad']].map(([k,l]) => (
+          <button key={k} onClick={() => setTabActiva(k)}
+            className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${tabActiva===k ? 'text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            style={tabActiva===k ? { background:'linear-gradient(135deg, #FF6B35, #FDC830)' } : {}}>
+            {l}
           </button>
-        </div>
-        {useCustom && (
-          <div className="flex gap-3 items-center">
-            <input type="date" value={custom.desde} onChange={e => setCustom({ ...custom, desde: e.target.value })}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            <span className="text-gray-400 text-sm">hasta</span>
-            <input type="date" value={custom.hasta} onChange={e => setCustom({ ...custom, hasta: e.target.value })}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-        )}
+        ))}
       </div>
 
-      {loading ? (
+      {/* Filtros de rango — solo en tab ventas */}
+      {tabActiva === 'ventas' && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-6">
+          <div className="flex flex-wrap gap-2 mb-3">
+            {RANGOS.map((r, i) => (
+              <button key={i} onClick={() => { setRangoIdx(i); setUseCustom(false) }}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${!useCustom && rangoIdx === i ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {r.label}
+              </button>
+            ))}
+            <button onClick={() => setUseCustom(true)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${useCustom ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              Personalizado
+            </button>
+          </div>
+          {useCustom && (
+            <div className="flex gap-3 items-center">
+              <input type="date" value={custom.desde} onChange={e => setCustom({ ...custom, desde: e.target.value })}
+                className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <span className="text-gray-400 text-sm">hasta</span>
+              <input type="date" value={custom.hasta} onChange={e => setCustom({ ...custom, hasta: e.target.value })}
+                className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {tabActiva === 'ventas' && (loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => <div key={i} className="bg-white rounded-2xl h-28 animate-pulse" />)}
         </div>
@@ -239,7 +262,131 @@ export default function Reportes() {
             </div>
           )}
         </>
-      ) : null}
+      ) : null)}
+
+      {/* ── TAB CONTABILIDAD ── */}
+      {tabActiva === 'contable' && contable && (
+        <div className="space-y-6">
+          {/* Valor actual del inventario */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <h3 className="font-display font-semibold text-dark mb-4 flex items-center gap-2">
+              <BookOpen size={18} className="text-purple-500" /> Valor actual del inventario
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="bg-purple-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500">Total inventario en bodega</p>
+                <p className="font-bold text-2xl text-purple-700">${Number(contable.valorInventario).toLocaleString('es-CO')}</p>
+                <p className="text-xs text-gray-400">Suma del valor registrado por producto</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-2 text-gray-500 font-medium">Producto</th>
+                    <th className="text-right py-2 text-gray-500 font-medium">Stock</th>
+                    <th className="text-right py-2 text-gray-500 font-medium">Valor total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contable.detalleInventario.map((p, i) => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="py-2 text-dark">{p.nombre}</td>
+                      <td className="py-2 text-right text-gray-600">{p.stock} {p.unidad || ''}</td>
+                      <td className="py-2 text-right font-semibold text-purple-700">${Number(p.valor).toLocaleString('es-CO')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Resumen mensual */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <h3 className="font-display font-semibold text-dark mb-2">📅 Resumen mensual</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Ganancia = Ventas − Costo de lo vendido &nbsp;·&nbsp; Inventario = suma del valor registrado por producto
+            </p>
+
+            {/* KPIs del período total */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              {(() => {
+                const totVentas   = contable.meses.reduce((s, m) => s + m.totalVentas, 0)
+                const totCosto    = contable.meses.reduce((s, m) => s + m.costoVendido, 0)
+                const totCompras  = contable.meses.reduce((s, m) => s + m.totalCompras, 0)
+                const totGanancia = contable.meses.reduce((s, m) => s + m.gananciaReal, 0)
+                return [
+                  { label: 'Ventas totales', value: totVentas, color: 'text-green-700', bg: 'bg-green-50' },
+                  { label: 'Costo vendido', value: totCosto, color: 'text-orange-700', bg: 'bg-orange-50' },
+                  { label: 'Inversión compras', value: totCompras, color: 'text-blue-700', bg: 'bg-blue-50' },
+                  { label: 'Ganancia real', value: totGanancia, color: totGanancia >= 0 ? 'text-emerald-700' : 'text-red-600', bg: totGanancia >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
+                ].map(k => (
+                  <div key={k.label} className={`${k.bg} rounded-xl p-3`}>
+                    <p className="text-xs text-gray-500">{k.label}</p>
+                    <p className={`font-bold text-lg mt-0.5 ${k.color}`}>${Number(k.value).toLocaleString('es-CO')}</p>
+                  </div>
+                ))
+              })()}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="text-left py-2 px-2 text-gray-500 font-medium rounded-tl-lg">Mes</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium">Ventas</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium"># ventas</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium">Costo vendido</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium">Compras</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium">Ganancia real</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium">Margen %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contable.meses.map((m, i) => {
+                    const margen = m.totalVentas > 0 ? ((m.gananciaReal / m.totalVentas) * 100).toFixed(1) : '0'
+                    return (
+                      <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-2 font-medium text-dark capitalize">{m.label}</td>
+                        <td className="py-3 px-2 text-right text-green-600 font-semibold">${Number(m.totalVentas).toLocaleString('es-CO')}</td>
+                        <td className="py-3 px-2 text-right text-gray-400">{m.numVentas}</td>
+                        <td className="py-3 px-2 text-right text-orange-600">${Number(m.costoVendido).toLocaleString('es-CO')}</td>
+                        <td className="py-3 px-2 text-right text-blue-600">
+                          ${Number(m.totalCompras).toLocaleString('es-CO')}
+                          {m.numCompras > 0 && <span className="text-gray-400 text-xs ml-1">({m.numCompras})</span>}
+                        </td>
+                        <td className={`py-3 px-2 text-right font-bold ${m.gananciaReal >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {m.gananciaReal >= 0 ? '+' : ''}${Number(m.gananciaReal).toLocaleString('es-CO')}
+                        </td>
+                        <td className={`py-3 px-2 text-right text-xs font-semibold ${+margen >= 30 ? 'text-emerald-600' : +margen >= 10 ? 'text-yellow-600' : 'text-red-500'}`}>
+                          {margen}%
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Inventario final */}
+            <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4">
+              <div className="bg-purple-50 rounded-xl px-4 py-3 flex items-center gap-3">
+                <span className="text-2xl">📦</span>
+                <div>
+                  <p className="text-xs text-gray-500">Inventario final (hoy)</p>
+                  <p className="font-bold text-lg text-purple-700">${Number(contable.valorInventario).toLocaleString('es-CO')}</p>
+                  <p className="text-xs text-gray-400">suma del valor registrado por producto</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 flex-1">
+                <strong>Ganancia real</strong> = Ventas − Costo de lo vendido (suma del costo de cada producto vendido ese mes).<br/>
+                <strong>Compras</strong> = inversión en reposición de inventario (no se resta de la ganancia, es capital en bodega).<br/>
+                <strong>Inventario final</strong> = valor del stock que queda en bodega hoy.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

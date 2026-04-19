@@ -72,6 +72,8 @@ export default function Ventas() {
         descuento, notas
       })
       setTicketData({ ...result, items: carrito, metodo, descuento, subtotal, total, cambio,
+        iva_pct: config.iva || 0,
+        iva_monto: config.iva ? Math.round(total * config.iva / 100) : 0,
         mensaje: MENSAJES[Math.floor(Math.random() * MENSAJES.length)] })
       limpiar()
       api.getCajaEstado().then(setCajaActual).catch(() => {})
@@ -323,14 +325,29 @@ export default function Ventas() {
                   ))}
                 </div>
                 <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
-                  <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${ticketData.subtotal.toLocaleString('es-CO')}</span></div>
-                  {ticketData.descuento>0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
-                  <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1 mt-1">
+                  {/* Base gravable = total - IVA incluido */}
+                  {ticketData.iva_pct > 0 ? (
+                    <>
+                      <div className="flex justify-between"><span className="text-gray-500">Subtotal (base)</span><span>${(ticketData.total - ticketData.iva_monto).toLocaleString('es-CO')}</span></div>
+                      {ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
+                      <div className="flex justify-between text-gray-500"><span>IVA {ticketData.iva_pct}%</span><span>${ticketData.iva_monto.toLocaleString('es-CO')}</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${ticketData.subtotal.toLocaleString('es-CO')}</span></div>
+                      {ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
+                    </>
+                  )}
+                  <div className="flex justify-between font-bold text-sm border-t border-gray-400 pt-1 mt-1">
                     <span>TOTAL</span><span>${ticketData.total.toLocaleString('es-CO')}</span>
                   </div>
-                  {ticketData.metodo==='efectivo' && ticketData.cambio>0 && (
-                    <div className="flex justify-between font-semibold text-green-700">
-                      <span>Cambio</span><span>${ticketData.cambio.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
+                  <p className="text-center text-xs font-semibold text-gray-600 mb-1">Forma de Pago</p>
+                  <div className="flex justify-between capitalize"><span>{ticketData.metodo}</span><span>${ticketData.total.toLocaleString('es-CO')}</span></div>
+                  {ticketData.metodo === 'efectivo' && (
+                    <div className="flex justify-between font-bold">
+                      <span>Cambio</span><span>${(ticketData.cambio||0).toLocaleString('es-CO')}</span>
                     </div>
                   )}
                 </div>

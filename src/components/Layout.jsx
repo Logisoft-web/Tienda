@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, ShoppingCart, Package, DollarSign,
-  BarChart2, Users, LogOut, Menu, X, RefreshCw, WifiOff, Settings
+  BarChart2, Users, LogOut, Menu, X, RefreshCw, WifiOff, Settings, Shield
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -13,14 +13,15 @@ function usePWA() {
 }
 
 const navItems = [
-  { to: '/',              icon: LayoutDashboard, label: 'Dashboard',    exact: true },
+  { to: '/',              icon: LayoutDashboard, label: 'Dashboard',       exact: true },
   { to: '/ventas',        icon: ShoppingCart,    label: 'Ventas' },
   { to: '/caja',          icon: DollarSign,      label: 'Caja' },
   { to: '/clientes',      icon: Users,           label: 'Clientes' },
-  { to: '/inventario',    icon: Package,         label: 'Inventario',   adminOnly: true },
-  { to: '/reportes',      icon: BarChart2,        label: 'Reportes',     adminOnly: true },
-  { to: '/usuarios',      icon: Users,           label: 'Usuarios',     adminOnly: true },
-  { to: '/configuracion', icon: Settings,        label: 'Configuración', adminOnly: true },
+  { to: '/inventario',    icon: Package,         label: 'Inventario',      adminOnly: true },
+  { to: '/reportes',      icon: BarChart2,       label: 'Reportes',        adminOnly: true },
+  { to: '/usuarios',      icon: Users,           label: 'Usuarios',        adminOnly: true },
+  { to: '/configuracion', icon: Settings,        label: 'Configuración',   adminOnly: true },
+  { to: '/superadmin',    icon: Shield,          label: 'Super Admin',     superOnly: true },
 ]
 
 export default function Layout() {
@@ -42,7 +43,12 @@ export default function Layout() {
   useEffect(() => { setOpen(false) }, [location.pathname])
 
   const handleLogout = () => { logout(); navigate('/login') }
-  const items = navItems.filter(i => !i.adminOnly || isAdmin)
+  const isSuperAdmin = user?.rol === 'superadmin'
+  const items = navItems.filter(i => {
+    if (i.superOnly) return isSuperAdmin
+    if (i.adminOnly) return isAdmin || isSuperAdmin
+    return true
+  })
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>

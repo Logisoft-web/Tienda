@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { api } from '../services/api'
 import { Plus, Edit2, Trash2, Package, AlertTriangle, Search, X, Upload } from 'lucide-react'
-import { SABORES, BEBIDAS, ADICIONES } from '../components/CheladaConfigurator'
+import { SABORES, BEBIDAS, ADICIONES, BORDES } from '../components/CheladaConfigurator'
 
 // ── TIPOS ─────────────────────────────────────────────────────────────────────
 const TIPOS = [
@@ -25,7 +25,7 @@ const genCodigo = () => `PRD-${Date.now().toString(36).toUpperCase()}-${Math.ran
 const empty = {
   nombre:'', codigo:'', proveedor:'', costo:'0', stock:'0', stock_minimo:'5',
   tipo:'sabor', unidad:'gramo', porcion_venta:100, descripcion:'', imagen:null,
-  fecha_vencimiento:'', sabores_enlazados:[], bebidas_enlazadas:[], adiciones_enlazadas:[],
+  fecha_vencimiento:'', sabores_enlazados:[], bebidas_enlazadas:[], adiciones_enlazadas:[], bordes_enlazados:[],
 }
 
 const ic = { background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)', borderRadius:'10px', padding:'8px 12px', fontSize:'14px', width:'100%' }
@@ -110,10 +110,10 @@ function FormProducto({ initial, onSave, onClose }) {
       await onSave({
         ...form,
         costo: +(form.costo||0),
-        precio: +(form.costo||0),
         stock: +(form.stock||0),
         stock_minimo: +(form.stock_minimo||5),
         porcion_venta: +(form.porcion_venta||100),
+        bordes_enlazados: form.bordes_enlazados||[],
       })
     } catch(e) { setMsg(e.message) }
     finally { setLoading(false) }
@@ -162,7 +162,7 @@ function FormProducto({ initial, onSave, onClose }) {
 
       {/* Costo + unidad */}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Costo de compra">
+        <Field label="Costo unitario">
           <InputField type="number" value={form.costo} onChange={e => set('costo', e.target.value)} />
         </Field>
         <Field label="Unidad">
@@ -174,32 +174,43 @@ function FormProducto({ initial, onSave, onClose }) {
       </div>
 
       {/* Porción de venta — sabor y adicion en gramos */}
-      {esGramos && (
-        <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
-          <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>⚖️ Porción por chelada</p>
-          <p className="text-xs" style={{ color:'var(--text-muted)' }}>¿Cuántos gramos se usan por chelada?</p>
-          <div className="flex items-center gap-2">
-            <input type="range" min="10" max="500" step="5" value={form.porcion_venta||100}
-              onChange={e => set('porcion_venta', +e.target.value)}
-              className="flex-1 accent-orange-500" />
-            <div className="w-16 text-center px-2 py-1.5 rounded-lg font-bold text-sm"
-              style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--primary)' }}>
-              {form.porcion_venta||100}g
+      {esGramos && (() => {
+        const esAdicionOBorde = form.tipo === 'adicion' || form.tipo === 'borde'
+        const sliderMin  = esAdicionOBorde ? 1  : 10
+        const sliderMax  = esAdicionOBorde ? 50 : 500
+        const sliderStep = esAdicionOBorde ? 1  : 5
+        const porcionDefault = esAdicionOBorde ? 10 : 100
+        const botonesRapidos = esAdicionOBorde ? [5, 10, 15, 20, 30] : [25, 50, 100, 150, 200]
+        const porcion = form.porcion_venta || porcionDefault
+        return (
+          <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
+            <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>⚖️ Porción por chelada</p>
+            <p className="text-xs" style={{ color:'var(--text-muted)' }}>
+              {esAdicionOBorde ? '¿Cuántos gramos se usan por chelada? (adiciones: 5–15g aprox.)' : '¿Cuántos gramos se usan por chelada?'}
+            </p>
+            <div className="flex items-center gap-2">
+              <input type="range" min={sliderMin} max={sliderMax} step={sliderStep} value={porcion}
+                onChange={e => set('porcion_venta', +e.target.value)}
+                className="flex-1 accent-orange-500" />
+              <div className="w-16 text-center px-2 py-1.5 rounded-lg font-bold text-sm"
+                style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--primary)' }}>
+                {porcion}g
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {botonesRapidos.map(g => (
+                <button key={g} type="button" onClick={() => set('porcion_venta', g)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                  style={{
+                    background: porcion === g ? 'var(--primary)' : 'var(--bg-raised)',
+                    color: porcion === g ? '#fff' : 'var(--text-muted)',
+                    border:'1px solid var(--border)'
+                  }}>{g}g</button>
+              ))}
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {[25,50,100,150,200].map(g => (
-              <button key={g} type="button" onClick={() => set('porcion_venta', g)}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
-                style={{
-                  background: (form.porcion_venta||100) === g ? 'var(--primary)' : 'var(--bg-raised)',
-                  color: (form.porcion_venta||100) === g ? '#fff' : 'var(--text-muted)',
-                  border:'1px solid var(--border)'
-                }}>{g}g</button>
-            ))}
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Fecha vencimiento — sabor y adicion */}
       {(form.tipo === 'sabor' || form.tipo === 'adicion') && (
@@ -268,6 +279,34 @@ function FormProducto({ initial, onSave, onClose }) {
           </div>
           {form.adiciones_enlazadas.length > 0 && (
             <p className="text-xs font-semibold" style={{ color:'var(--success)' }}>✓ {form.adiciones_enlazadas.length} enlazada{form.adiciones_enlazadas.length!==1?'s':''}</p>
+          )}
+        </div>
+      )}
+
+      {/* Enlace a bordes — tipo borde */}
+      {form.tipo === 'borde' && (
+        <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(8,145,178,0.05)', border:'1px solid var(--border)' }}>
+          <p className="text-xs font-bold" style={{ color:'#0891b2' }}>🔗 Enlazar a bordes del configurador</p>
+          <p className="text-xs" style={{ color:'var(--text-muted)' }}>Al vender este borde se descuenta el stock de este ingrediente.</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {BORDES.map(b => {
+              const sel = (form.bordes_enlazados||[]).includes(b.id)
+              return (
+                <button key={b.id} type="button" onClick={() => toggleArr('bordes_enlazados', b.id)}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-all"
+                  style={{
+                    background: sel ? 'rgba(8,145,178,0.15)' : 'var(--bg-raised)',
+                    border: `1.5px solid ${sel ? '#0891b2' : 'var(--border)'}`,
+                    color: sel ? '#0891b2' : 'var(--text-muted)',
+                  }}>
+                  <span>{b.emoji}</span><span className="truncate">{b.nombre}</span>
+                  {sel && <span className="ml-auto">✓</span>}
+                </button>
+              )
+            })}
+          </div>
+          {(form.bordes_enlazados||[]).length > 0 && (
+            <p className="text-xs font-semibold" style={{ color:'var(--success)' }}>✓ {form.bordes_enlazados.length} enlazado{form.bordes_enlazados.length!==1?'s':''}</p>
           )}
         </div>
       )}
@@ -371,7 +410,7 @@ export default function Inventario() {
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [modal, setModal] = useState(null) // 'crear' | 'editar' | 'stock'
   const [seleccionado, setSeleccionado] = useState(null)
-  const [stockForm, setStockForm] = useState({ cantidad:'', tipo:'entrada' })
+  const [stockForm, setStockForm] = useState({ cantidad:'', tipo:'entrada', costo_unitario:'' })
   const [loadingStock, setLoadingStock] = useState(false)
 
   const cargar = () => api.getProductos().then(setProductos).catch(console.error)
@@ -401,7 +440,17 @@ export default function Inventario() {
     if (!stockForm.cantidad) return
     setLoadingStock(true)
     try {
-      await api.ajustarStock(seleccionado.id, { cantidad: +stockForm.cantidad, tipo: stockForm.tipo })
+      // costo_unitario se calcula dividiendo el total entre la cantidad
+      const costoTotal = +stockForm.costo_unitario || 0
+      const costoUnitario = costoTotal > 0 && +stockForm.cantidad > 0
+        ? costoTotal / +stockForm.cantidad
+        : undefined
+      await api.ajustarStock(seleccionado.id, {
+        cantidad: +stockForm.cantidad,
+        tipo: stockForm.tipo,
+        costo_unitario: costoUnitario,
+        costo_total: costoTotal || undefined,
+      })
       await cargar()
       setModal(null)
     } finally { setLoadingStock(false) }
@@ -556,6 +605,11 @@ export default function Inventario() {
                     🔗 {p.adiciones_enlazadas.length} adición{p.adiciones_enlazadas.length!==1?'es':''}
                   </span>
                 )}
+                {p.bordes_enlazados?.length > 0 && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background:'rgba(8,145,178,0.1)', color:'#0891b2' }}>
+                    🔗 {p.bordes_enlazados.length} borde{p.bordes_enlazados.length!==1?'s':''}
+                  </span>
+                )}
               </div>
             </div>
           )
@@ -588,6 +642,7 @@ export default function Inventario() {
               sabores_enlazados: seleccionado.sabores_enlazados||[],
               bebidas_enlazadas: seleccionado.bebidas_enlazadas||[],
               adiciones_enlazadas: seleccionado.adiciones_enlazadas||[],
+              bordes_enlazados: seleccionado.bordes_enlazados||[],
             }}
             onSave={handleEditar}
             onClose={() => setModal(null)}
@@ -601,10 +656,15 @@ export default function Inventario() {
           <div className="space-y-3">
             <p className="text-sm" style={{ color:'var(--text-muted)' }}>
               Stock actual: <strong style={{ color:'var(--text-primary)' }}>{seleccionado.stock}{seleccionado.tipo==='sabor'?'g':''}</strong>
+              {seleccionado.costo > 0 && (
+                <span className="ml-2 text-xs" style={{ color:'var(--text-dim)' }}>
+                  · costo unit. actual: ${Number(seleccionado.costo).toLocaleString('es-CO')}
+                </span>
+              )}
             </p>
             <Field label="Tipo de movimiento">
               <div className="grid grid-cols-3 gap-2">
-                {[{v:'entrada',l:'Entrada',c:'var(--success)'},{v:'salida',l:'Salida',c:'var(--danger)'},{v:'ajuste',l:'Ajuste',c:'var(--info)'}].map(o => (
+                {[{v:'entrada',l:'Entrada 📥',c:'var(--success)'},{v:'salida',l:'Salida 📤',c:'var(--danger)'},{v:'ajuste',l:'Ajuste ✏️',c:'var(--info)'}].map(o => (
                   <button key={o.v} type="button" onClick={() => setStockForm(f => ({...f, tipo:o.v}))}
                     className="py-2 rounded-xl text-xs font-bold border-2 transition-all"
                     style={{
@@ -615,11 +675,42 @@ export default function Inventario() {
                 ))}
               </div>
             </Field>
-            <Field label="Cantidad">
+            <Field label={seleccionado.tipo==='sabor' ? 'Cantidad (gramos)' : 'Cantidad'}>
               <InputField type="number" value={stockForm.cantidad}
                 onChange={e => setStockForm(f => ({...f, cantidad:e.target.value}))}
                 placeholder="0" />
+              {seleccionado.tipo==='sabor' && +stockForm.cantidad > 0 && (
+                <p className="text-xs mt-1" style={{ color:'var(--text-muted)' }}>
+                  {+stockForm.cantidad >= 1000 ? `${(+stockForm.cantidad/1000).toFixed(2)} kg` : `${stockForm.cantidad} g`}
+                  {seleccionado.porcion_venta > 0 && ` · ${Math.floor(+stockForm.cantidad / seleccionado.porcion_venta)} porciones`}
+                </p>
+              )}
             </Field>
+
+            {/* Costo total — solo en entradas */}
+            {stockForm.tipo === 'entrada' && (
+              <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(22,163,74,0.05)', border:'1px solid var(--border)' }}>
+                <p className="text-xs font-bold" style={{ color:'var(--success)' }}>💰 ¿Cuánto pagaste en total?</p>
+                <Field label="Precio total de la compra">
+                  <InputField type="number" value={stockForm.costo_unitario}
+                    onChange={e => setStockForm(f => ({...f, costo_unitario:e.target.value}))}
+                    placeholder="Ej: 15000" />
+                  <p className="text-xs mt-1" style={{ color:'var(--text-dim)' }}>
+                    Dejar vacío para mantener el costo actual
+                  </p>
+                </Field>
+                {+stockForm.cantidad > 0 && +stockForm.costo_unitario > 0 && (
+                  <div className="flex items-center justify-between rounded-lg px-3 py-2"
+                    style={{ background:'var(--bg-raised)', border:'1px solid var(--border)' }}>
+                    <span className="text-xs" style={{ color:'var(--text-muted)' }}>Costo unitario calculado:</span>
+                    <span className="text-sm font-bold" style={{ color:'var(--success)' }}>
+                      ${Number(+stockForm.costo_unitario / +stockForm.cantidad).toLocaleString('es-CO', { maximumFractionDigits: 2 })} / {seleccionado.tipo==='sabor' ? 'g' : 'und'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button onClick={handleStock} disabled={loadingStock || !stockForm.cantidad}
               className="w-full py-3 rounded-xl font-bold text-white text-sm disabled:opacity-40"
               style={{ background:'linear-gradient(135deg, var(--primary), var(--secondary))' }}>

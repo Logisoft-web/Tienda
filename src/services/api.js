@@ -7,12 +7,20 @@ const headers = () => ({
   Authorization: `Bearer ${getToken()}`
 })
 
+// Callback que AuthContext registra para hacer logout ante 401
+let _onUnauthorized = null
+export const setUnauthorizedHandler = (fn) => { _onUnauthorized = fn }
+
 const req = async (method, path, body) => {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: headers(),
     body: body ? JSON.stringify(body) : undefined
   })
+  if (res.status === 401) {
+    _onUnauthorized?.()
+    throw new Error('Sesión expirada')
+  }
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || 'Error en servidor')
   return data
@@ -85,6 +93,7 @@ export const api = {
   // Caja
   getCajaEstado: () => req('GET', '/caja/estado'),
   getCajasActivas: () => req('GET', '/caja/activas'),
+  getUltimoCierre: () => req('GET', '/caja/ultimo-cierre'),
   abrirCaja: (body) => req('POST', '/caja/abrir', body),
   cerrarCaja: (body) => req('POST', '/caja/cerrar', body),
   getMovimientos: (params = {}) => {
@@ -122,19 +131,15 @@ export const api = {
       })
   },
 
-  descargarContable: (params = {}) => {
-    const q = new URLSearchParams({ ...params, formato: 'csv' }).toString()
-    const token = getToken()
-    const url = `${BASE}/reportes/contable?${q}`
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob())
-      .then(blob => {
-        const burl = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = burl
-        a.download = `reporte_contable_${params.desde || 'hoy'}_${params.hasta || 'hoy'}.csv`
-        a.click()
-        URL.revokeObjectURL(burl)
-      })
-  }
+  // Compras / Contabilidad inventario
+  getCompras: (mes) => req('GET', `/compras${mes ? '?mes=' + mes : ''}`),
+  registrarCompra: (body) => req('POST', '/compras', body),
+  getContableMensual: (meses = 6) => req('GET', `/reportes/contable-mensual?meses=${meses}`),
+
+  // SuperAdmin
+  superAdminGetUsuarios: () => req('GET', '/superadmin/usuarios'),
+  superAdminAsignarPlan: (id, plan) => req('POST', `/superadmin/usuarios/${id}/plan`, { plan }),
+  superAdminResetPlan: (id) => req('POST', `/superadmin/usuarios/${id}/reset-plan`),
+  superAdminCambiarPassword: (id, password) => req('PUT', `/superadmin/usuarios/${id}/password`, { password }),
 }
+

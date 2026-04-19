@@ -19,6 +19,7 @@ export const db = {
   clientes:    Datastore.create({ filename: join(dir, 'clientes.db'),    autoload: true }),
   combos:      Datastore.create({ filename: join(dir, 'combos.db'),      autoload: true }),
   secciones:   Datastore.create({ filename: join(dir, 'secciones.db'),   autoload: true }),
+  compras:     Datastore.create({ filename: join(dir, 'compras.db'),     autoload: true }),
 }
 
 // Índices únicos

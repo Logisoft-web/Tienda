@@ -5,6 +5,21 @@ import { DollarSign, TrendingUp, TrendingDown, Lock, Unlock, Plus, RefreshCw } f
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+function Modal({ title, children }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="rounded-2xl w-full max-w-sm shadow-2xl fade-in"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-display text-lg" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function Caja() {
   const { isAdmin } = useAuth()
   const [caja, setCaja] = useState(undefined)
@@ -51,7 +66,13 @@ export default function Caja() {
   const cerrarCaja = async () => {
     setLoading(true)
     try {
-      await api.cerrarCaja({ monto_final: parseFloat(montoCierre || saldoActual) })
+      const fondo = parseFloat(montoCierre || 0)
+      const retiro = Math.max(0, saldoActual - fondo)
+      // Si hay retiro, registrarlo como egreso antes de cerrar
+      if (retiro > 0) {
+        await api.addMovimiento({ tipo: 'egreso', concepto: `Retiro dueño — fondo $${fondo.toLocaleString('es-CO')}`, monto: retiro })
+      }
+      await api.cerrarCaja({ monto_final: fondo })
       setShowCierre(false); setMontoCierre(''); cargar()
     } catch (err) { setMsg(err.message) }
     finally { setLoading(false) }
@@ -67,20 +88,6 @@ export default function Caja() {
   }
 
   const esIngreso = (tipo) => tipo === 'ingreso' || tipo === 'apertura'
-
-  // Modal base reutilizable
-  const Modal = ({ title, onClose, children }) => (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="rounded-2xl w-full max-w-sm shadow-2xl fade-in"
-        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-display text-lg" style={{ color: 'var(--text-primary)' }}>{title}</h3>
-        </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
-  )
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -123,7 +130,10 @@ export default function Caja() {
         {isAdmin && (
           <div className="flex gap-2">
             {!caja ? (
-              <button onClick={() => setShowApertura(true)}
+              <button onClick={() => {
+                api.getUltimoCierre().then(r => setMontoApertura(r.monto_final > 0 ? String(r.monto_final) : '')).catch(() => {})
+                setShowApertura(true)
+              }}
                 className="px-4 py-2 rounded-xl text-white text-sm font-semibold"
                 style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
                 Abrir caja
@@ -135,7 +145,7 @@ export default function Caja() {
                   style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                   <Plus size={14} /> Movimiento
                 </button>
-                <button onClick={() => setShowCierre(true)}
+                <button onClick={() => { setMontoCierre(String(saldoActual)); setShowCierre(true) }}
                   className="px-4 py-2 rounded-xl text-sm font-semibold"
                   style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                   Cerrar caja
@@ -256,25 +266,38 @@ export default function Caja() {
         </Modal>
       )}
 
-      {/* Modal cierre */}
       {showCierre && (
         <Modal title="Cerrar caja" onClose={() => setShowCierre(false)}>
-          <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
-            Saldo calculado: <strong style={{ color: 'var(--primary)' }}>${saldoActual.toFixed(2)}</strong>
+          <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>
+            Saldo en caja: <strong style={{ color: 'var(--primary)' }}>${saldoActual.toLocaleString('es-CO')}</strong>
           </p>
-          <label className="block text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
-            Monto físico en caja
-          </label>
-          <input type="number" value={montoCierre}
-            onChange={e => setMontoCierre(e.target.value)}
-            placeholder={saldoActual.toFixed(2)}
-            className="input-dark text-lg font-bold text-center mb-4" />
-          {montoCierre && (
-            <div className="text-center text-sm font-bold mb-4"
-              style={{ color: parseFloat(montoCierre) >= saldoActual ? 'var(--success)' : 'var(--danger)' }}>
-              Diferencia: ${(parseFloat(montoCierre) - saldoActual).toFixed(2)}
-            </div>
-          )}
+
+          {/* Retiro del dueño */}
+          <div className="rounded-xl p-3 mb-3 space-y-2" style={{ background:'var(--bg-raised)', border:'1px solid var(--border)' }}>
+            <p className="text-xs font-bold" style={{ color:'var(--text-primary)' }}>💰 Retiro del dueño</p>
+            <label className="block text-xs" style={{ color:'var(--text-muted)' }}>Fondo a dejar para próxima apertura</label>
+            <input type="number" value={montoCierre}
+              onChange={e => setMontoCierre(e.target.value)}
+              placeholder="Ej: 5000"
+              className="input-dark text-center font-bold" />
+            {montoCierre !== '' && (
+              <div className="text-xs space-y-1 pt-1 border-t" style={{ borderColor:'var(--border)' }}>
+                <div className="flex justify-between">
+                  <span style={{ color:'var(--text-muted)' }}>Saldo actual</span>
+                  <span>${saldoActual.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color:'var(--text-muted)' }}>Fondo a dejar</span>
+                  <span>${parseFloat(montoCierre||0).toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between font-bold border-t pt-1" style={{ borderColor:'var(--border)', color: saldoActual - parseFloat(montoCierre||0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  <span>Retiro dueño</span>
+                  <span>${Math.max(0, saldoActual - parseFloat(montoCierre||0)).toLocaleString('es-CO')}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {msg && <p className="text-xs mb-3" style={{ color: 'var(--danger)' }}>{msg}</p>}
           <div className="flex gap-3">
             <button onClick={() => setShowCierre(false)}

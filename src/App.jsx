@@ -10,12 +10,14 @@ import Reportes from './pages/Reportes'
 import Usuarios from './pages/Usuarios'
 import Configuracion from './pages/Configuracion'
 import Clientes from './pages/Clientes'
+import SuperAdmin from './pages/SuperAdmin'
 
-function PrivateRoute({ children, adminOnly = false }) {
+function PrivateRoute({ children, adminOnly = false, superOnly = false }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"/></div>
   if (!user) return <Navigate to="/login" replace />
-  if (adminOnly && user.rol !== 'admin') return <Navigate to="/" replace />
+  if (superOnly && user.rol !== 'superadmin') return <Navigate to="/" replace />
+  if (adminOnly && user.rol !== 'admin' && user.rol !== 'superadmin') return <Navigate to="/" replace />
   return children
 }
 
@@ -34,6 +36,7 @@ export default function App() {
             <Route path="usuarios" element={<PrivateRoute adminOnly><Usuarios /></PrivateRoute>} />
             <Route path="configuracion" element={<PrivateRoute adminOnly><Configuracion /></PrivateRoute>} />
             <Route path="clientes" element={<Clientes />} />
+            <Route path="superadmin" element={<PrivateRoute superOnly><SuperAdmin /></PrivateRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

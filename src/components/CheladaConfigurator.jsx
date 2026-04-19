@@ -75,7 +75,7 @@ export const ADICIONES = [
   { id: 'perlas',   nombre: 'Perlas Explosivas',    precio: 2000, emoji: '✨' },
 ]
 
-const BORDES = [
+export const BORDES = [
   { id: 'sal-limon',   nombre: 'Sal Limón',    emoji: '🍋' },
   { id: 'sal-pimienta',nombre: 'Sal Pimienta', emoji: '🌶️' },
   { id: 'sal-tajin',   nombre: 'Sal Tajín',    emoji: '🧂' },
@@ -104,12 +104,15 @@ export default function CheladaConfigurator({ onAgregar, onCerrar, inventario = 
   }
 
   const bebidaTieneStock = (bebidaId) => {
-    const prods = inventario.filter(p =>
+    const enlazados = inventario.filter(p =>
       (p.tipo === 'bebida' || p.tipo === 'objeto') &&
       Array.isArray(p.bebidas_enlazadas) && p.bebidas_enlazadas.includes(bebidaId)
     )
-    if (prods.length === 0) return false // sin enlace = no disponible
-    return prods.some(p => p.stock >= 1)
+    if (enlazados.length === 0) return false // sin enlace = no disponible
+    // Debe haber stock tanto de la bebida como del vaso (objeto)
+    const hayBebida = enlazados.some(p => p.tipo === 'bebida' && p.stock >= 1)
+    const hayVaso   = enlazados.some(p => p.tipo === 'objeto'  && p.stock >= 1)
+    return hayBebida && hayVaso
   }
 
   const adicionTieneStock = (adicionId) => {
@@ -118,6 +121,14 @@ export default function CheladaConfigurator({ onAgregar, onCerrar, inventario = 
     )
     if (prods.length === 0) return false // sin enlace = no disponible
     return prods.some(p => p.stock >= (p.porcion_venta || 100))
+  }
+
+  const bordeTieneStock = (bordeId) => {
+    const prods = inventario.filter(p =>
+      p.tipo === 'borde' && Array.isArray(p.bordes_enlazados) && p.bordes_enlazados.includes(bordeId)
+    )
+    if (prods.length === 0) return false // sin enlace = no disponible
+    return prods.some(p => p.stock >= (p.porcion_venta || 10))
   }
 
   const hayAlgunSaborDisponible = SABORES.some(s => saborTieneStock(s.id))
@@ -293,6 +304,18 @@ export default function CheladaConfigurator({ onAgregar, onCerrar, inventario = 
               <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
                 Selección múltiple — cada adición suma al total
               </p>
+              {/* Sin adicional */}
+              <button
+                onClick={() => setAdiciones([])}
+                className="w-full flex items-center gap-4 rounded-2xl p-3.5 text-left transition-all"
+                style={{
+                  background: adiciones.length === 0 ? 'rgba(244,98,42,0.08)' : 'var(--bg-raised)',
+                  border: `2px solid ${adiciones.length === 0 ? 'var(--primary)' : 'var(--border)'}`,
+                }}>
+                <span className="text-2xl shrink-0">🚫</span>
+                <span className="flex-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Sin adicional</span>
+                {adiciones.length === 0 && <Check size={16} style={{ color: 'var(--primary)' }} />}
+              </button>
               {ADICIONES.map(ad => {
                 const sel = adiciones.find(a => a.id === ad.id)
                 const disponible = adicionTieneStock(ad.id)
@@ -340,18 +363,27 @@ export default function CheladaConfigurator({ onAgregar, onCerrar, inventario = 
                 <span className="flex-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Sin borde</span>
                 {!borde && <Check size={16} style={{ color: 'var(--primary)' }} />}
               </button>
-              {BORDES.map(bo => (
-                <button key={bo.id} onClick={() => setBorde(bo)}
-                  className="w-full flex items-center gap-4 rounded-2xl p-3.5 text-left transition-all"
-                  style={{
-                    background: borde?.id === bo.id ? 'rgba(244,98,42,0.08)' : 'var(--bg-raised)',
-                    border: `2px solid ${borde?.id === bo.id ? 'var(--primary)' : 'var(--border)'}`,
-                  }}>
-                  <span className="text-2xl shrink-0">{bo.emoji}</span>
-                  <span className="flex-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{bo.nombre}</span>
-                  {borde?.id === bo.id && <Check size={16} style={{ color: 'var(--primary)' }} />}
-                </button>
-              ))}
+              {BORDES.map(bo => {
+                const sinStock = !bordeTieneStock(bo.id)
+                return (
+                  <button key={bo.id} onClick={() => !sinStock && setBorde(bo)}
+                    disabled={sinStock}
+                    className="w-full flex items-center gap-4 rounded-2xl p-3.5 text-left transition-all"
+                    style={{
+                      background: borde?.id === bo.id ? 'rgba(244,98,42,0.08)' : 'var(--bg-raised)',
+                      border: `2px solid ${borde?.id === bo.id ? 'var(--primary)' : 'var(--border)'}`,
+                      opacity: sinStock ? 0.5 : 1,
+                      cursor: sinStock ? 'not-allowed' : 'pointer',
+                    }}>
+                    <span className="text-2xl shrink-0">{bo.emoji}</span>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{bo.nombre}</span>
+                      {sinStock && <p className="text-xs" style={{ color: 'var(--danger)' }}>Sin stock</p>}
+                    </div>
+                    {borde?.id === bo.id && <Check size={16} style={{ color: 'var(--primary)' }} />}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

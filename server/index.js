@@ -149,9 +149,9 @@ app.get('/api/productos', auth, async (req, res) => {
 })
 
 app.post('/api/productos', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas } = req.body
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas, bordes_enlazados } = req.body
   if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
-  if (isNaN(+precio) || +precio <= 0) return res.status(400).json({ error: 'Precio debe ser mayor a 0' })
+  // precio de venta se define en el configurador de ventas, no es requerido en inventario
   const doc = await db.productos.insert({
     nombre: nombre.trim(),
     categoria: (categoria || '').trim(),
@@ -172,13 +172,14 @@ app.post('/api/productos', auth, adminOnly, async (req, res) => {
     sabores_enlazados: sabores_enlazados||[],
     bebidas_enlazadas: bebidas_enlazadas||[],
     adiciones_enlazadas: adiciones_enlazadas||[],
+    bordes_enlazados: bordes_enlazados||[],
     activo: true,
     creado_en: now()
   })
   res.json({ id: doc._id })
 })
 app.put('/api/productos/:id', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas } = req.body
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas, bordes_enlazados } = req.body
   await db.productos.update({ _id: req.params.id }, { $set: {
     nombre, categoria, precio: +precio, costo: +costo, stock: +stock, stock_minimo: +stock_minimo, unidad,
     tipo: tipo||'bebida', porcion_venta: +(porcion_venta||100),
@@ -188,21 +189,52 @@ app.put('/api/productos/:id', auth, adminOnly, async (req, res) => {
     sabores_enlazados: sabores_enlazados||[],
     bebidas_enlazadas: bebidas_enlazadas||[],
     adiciones_enlazadas: adiciones_enlazadas||[],
+    bordes_enlazados: bordes_enlazados||[],
     activo: activo ?? true
   }})
   res.json({ ok: true })
 })
 
 app.patch('/api/productos/:id/stock', auth, adminOnly, async (req, res) => {
-  const { cantidad, tipo } = req.body
+  const { cantidad, tipo, costo_unitario, costo_total } = req.body
   const prod = await db.productos.findOne({ _id: req.params.id })
   if (!prod) return res.status(404).json({ error: 'No encontrado' })
   let nuevoStock = prod.stock
   if (tipo === 'entrada') nuevoStock += +cantidad
   else if (tipo === 'salida') nuevoStock -= +cantidad
   else nuevoStock = +cantidad
-  await db.productos.update({ _id: req.params.id }, { $set: { stock: nuevoStock } })
-  res.json({ stock: nuevoStock })
+
+  // Calcular costo unitario: si viene costo_total lo dividimos entre cantidad
+  // Si viene costo_unitario directo lo usamos, si no, mantenemos el actual
+  let nuevoCostoUnitario = prod.costo
+  if (costo_total && +costo_total > 0 && +cantidad > 0) {
+    nuevoCostoUnitario = +costo_total / +cantidad
+  } else if (costo_unitario && +costo_unitario > 0) {
+    nuevoCostoUnitario = +costo_unitario
+  }
+
+  const updateData = { stock: nuevoStock }
+  if (nuevoCostoUnitario !== prod.costo) updateData.costo = nuevoCostoUnitario
+
+  await db.productos.update({ _id: req.params.id }, { $set: updateData })
+
+  // Registrar compra si es entrada
+  if (tipo === 'entrada' && +cantidad > 0) {
+    const costoTotalFinal = costo_total ? +costo_total : nuevoCostoUnitario * +cantidad
+    await db.compras.insert({
+      producto_id: prod._id,
+      producto_nombre: prod.nombre,
+      producto_tipo: prod.tipo,
+      cantidad: +cantidad,
+      costo_unitario: nuevoCostoUnitario,
+      costo_total: costoTotalFinal,
+      unidad: prod.unidad || 'unidad',
+      creado_en: now(),
+      mes: now().slice(0, 7),
+    })
+  }
+
+  res.json({ stock: nuevoStock, costo: nuevoCostoUnitario })
 })
 
 app.delete('/api/productos/:id', auth, adminOnly, async (req, res) => {
@@ -382,7 +414,13 @@ app.post('/api/ventas', auth, async (req, res) => {
       estado: 'completada', notas: notas || null, creado_en: now()
     })
     for (const item of items) {
-      await db.ventaItems.insert({ venta_id: venta._id, ...item, subtotal: item.precio_unitario * item.cantidad })
+      // Guardar costo_unitario en el momento de la venta para historial contable preciso
+      let costoUnitario = item.costo_unitario || 0
+      if (!costoUnitario && item.producto_id) {
+        const prodCosto = await db.productos.findOne({ _id: item.producto_id })
+        costoUnitario = prodCosto?.costo || 0
+      }
+      await db.ventaItems.insert({ venta_id: venta._id, ...item, costo_unitario: costoUnitario, subtotal: item.precio_unitario * item.cantidad })
       if (!item.es_combo) {
         // Para cheladas: solo descontar por enlaces, no por producto_id (es un ID virtual)
         if (!item.es_chelada) {
@@ -493,29 +531,26 @@ app.get('/api/caja/estado', auth, async (req, res) => {
   // Calcular efectivo real disponible en caja:
   // monto_inicial + todo el efectivo recibido de clientes - cambios ya entregados - egresos manuales
   const hoy = new Date().toISOString().slice(0, 10)
-  const ventasEfectivo = await db.ventas.find({
-    estado: 'completada',
-    metodo_pago: 'efectivo'
-  })
-  const ventasHoy = ventasEfectivo.filter(v => v.creado_en.slice(0, 10) === hoy)
+  const ventasEfectivo = await db.ventas.find({ estado: 'completada', metodo_pago: 'efectivo' })
+  const ventasHoy = ventasEfectivo.filter(v => v.creado_en >= caja.abierta_en)
 
   // Lo que entró físicamente a la caja = lo que pagó cada cliente (monto_recibido)
   const totalRecibido = ventasHoy.reduce((s, v) => s + (v.monto_recibido || v.total), 0)
   // Lo que salió de la caja = cambios entregados
   const totalCambios = ventasHoy.reduce((s, v) => s + (v.cambio || 0), 0)
 
-  // Movimientos manuales de caja del día
+  // Movimientos manuales de caja del día — solo los de esta caja (desde que se abrió)
   const movs = await db.movimientos.find({})
-  const movsHoy = movs.filter(m => m.creado_en?.slice(0, 10) === hoy)
-  const egresosManual = movsHoy.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0)
-  const ingresosManual = movsHoy.filter(m => m.tipo === 'ingreso_manual').reduce((s, m) => s + m.monto, 0)
+  const movsEstaCaja = movs.filter(m => m.creado_en >= caja.abierta_en)
+  const egresosManual = movsEstaCaja.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0)
+  const ingresosManual = movsEstaCaja.filter(m => m.tipo === 'ingreso_manual').reduce((s, m) => s + m.monto, 0)
 
   // Efectivo físico en caja = apertura + entradas - salidas
   const efectivo_disponible = caja.monto_inicial + totalRecibido - totalCambios - egresosManual + ingresosManual
 
   // Ventas totales del día (todos los métodos de pago)
   const todasVentasHoy = await db.ventas.find({ estado: 'completada' })
-  const ventasTotalesHoy = todasVentasHoy.filter(v => v.creado_en.slice(0, 10) === hoy)
+  const ventasTotalesHoy = todasVentasHoy.filter(v => v.creado_en >= caja.abierta_en)
   const ingresos_ventas_hoy = ventasTotalesHoy.reduce((s, v) => s + v.total, 0)
   const num_ventas_hoy = ventasTotalesHoy.length
 
@@ -570,6 +605,12 @@ app.post('/api/caja/cerrar', auth, async (req, res) => {
   await db.caja.update({ _id: caja._id }, { $set: { estado: 'cerrada', monto_final: mf, cerrada_en: now() } })
   await db.movimientos.insert({ tipo: 'cierre', concepto: 'Cierre de caja', monto: mf, usuario_id: req.user.id, usuario: req.user.nombre, creado_en: now() })
   res.json({ ok: true })
+})
+
+app.get('/api/caja/ultimo-cierre', auth, async (req, res) => {
+  const cajas = await db.caja.find({ estado: 'cerrada' }).sort({ cerrada_en: -1 }).limit(1)
+  const ultima = cajas[0]
+  res.json({ monto_final: ultima?.monto_final || 0 })
 })
 
 app.get('/api/caja/movimientos', auth, async (req, res) => {
@@ -952,5 +993,176 @@ app.put('/api/config', auth, adminOnly, async (req, res) => {
   else await db.config.insert(datos)
   res.json({ ok: true })
 })
+
+// ── COMPRAS / CONTABILIDAD INVENTARIO ────────────────────────────────────────
+app.get('/api/compras', auth, adminOnly, async (req, res) => {
+  const { mes } = req.query // YYYY-MM
+  let compras = await db.compras.find({}).sort({ creado_en: -1 })
+  if (mes) compras = compras.filter(c => c.mes === mes)
+  res.json(compras)
+})
+
+app.post('/api/compras', auth, adminOnly, async (req, res) => {
+  const { producto_id, cantidad, costo_unitario, nota } = req.body
+  const prod = await db.productos.findOne({ _id: producto_id })
+  if (!prod) return res.status(404).json({ error: 'Producto no encontrado' })
+  const costoTotal = +(costo_unitario || prod.costo || 0) * +cantidad
+  // Actualizar costo unitario del producto si se especifica uno nuevo
+  if (costo_unitario && +costo_unitario !== prod.costo) {
+    await db.productos.update({ _id: producto_id }, { $set: { costo: +costo_unitario } })
+  }
+  // Sumar al stock
+  await db.productos.update({ _id: producto_id }, { $set: { stock: prod.stock + +cantidad } })
+  const doc = await db.compras.insert({
+    producto_id, producto_nombre: prod.nombre, producto_tipo: prod.tipo,
+    cantidad: +cantidad, costo_unitario: +(costo_unitario || prod.costo || 0),
+    costo_total: costoTotal, unidad: prod.unidad || 'unidad',
+    nota: nota || '', creado_en: now(), mes: now().slice(0, 7),
+  })
+  res.json({ id: doc._id, costo_total: costoTotal })
+})
+
+app.get('/api/reportes/contable-mensual', auth, adminOnly, async (req, res) => {
+  const { meses = 6 } = req.query
+  const ahora = new Date()
+  const resultado = []
+
+  // Cargar todos los datos una sola vez
+  const todasVentas = await db.ventas.find({ estado: 'completada' })
+  const todosItems  = await db.ventaItems.find({})
+  const todasCompras = await db.compras.find({})
+  const todosProductos = await db.productos.find({ activo: true })
+
+  for (let i = 0; i < +meses; i++) {
+    const fecha = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1)
+    const mes = fecha.toISOString().slice(0, 7) // YYYY-MM
+    const label = fecha.toLocaleString('es-CO', { month: 'long', year: 'numeric' })
+
+    // Ventas del mes
+    const ventasMes = todasVentas.filter(v => v.creado_en.slice(0, 7) === mes)
+    const totalVentas = ventasMes.reduce((s, v) => s + v.total, 0)
+    const numVentas = ventasMes.length
+
+    // Costo de lo vendido: usa costo_unitario guardado en el item al momento de la venta
+    // (se calcula como costo_total/cantidad al registrar la compra)
+    const ventaIdsMes = new Set(ventasMes.map(v => v._id))
+    const itemsMes = todosItems.filter(it => ventaIdsMes.has(it.venta_id))
+    const costoVendido = itemsMes.reduce((s, it) => {
+      // Solo usar costo_unitario si fue guardado explícitamente en el item
+      const costo = it.costo_unitario || 0
+      return s + costo * (it.cantidad || 1)
+    }, 0)
+
+    // Compras del mes (inversión en reposición de inventario)
+    const comprasMes = todasCompras.filter(c => c.mes === mes)
+    const totalCompras = comprasMes.reduce((s, c) => s + c.costo_total, 0)
+    const numCompras = comprasMes.length
+
+    // Ganancia real = Ventas - Costo de lo vendido
+    // (las compras son inversión en inventario, no gasto directo del mes)
+    const gananciaReal = totalVentas - costoVendido
+
+    resultado.push({
+      mes, label,
+      totalVentas, numVentas,
+      costoVendido,           // costo de los productos que se vendieron
+      totalCompras, numCompras, // inversión en compras/reposición
+      gananciaReal,           // ventas - costo vendido
+    })
+  }
+
+  // Valor actual del inventario — costo guarda el valor total pagado por el lote
+  const valorInventario = todosProductos.reduce((s, p) => s + (p.costo || 0), 0)
+  const detalleInventario = todosProductos
+    .filter(p => p.costo > 0)
+    .map(p => ({ nombre: p.nombre, tipo: p.tipo, stock: p.stock, unidad: p.unidad, valor: p.costo }))
+    .sort((a, b) => b.valor - a.valor)
+
+  res.json({ meses: resultado.reverse(), valorInventario, detalleInventario })
+})
+
+// ── SUPERADMIN ────────────────────────────────────────────────────────────────
+const superAdminOnly = (req, res, next) => {
+  if (req.user.rol !== 'superadmin') return res.status(403).json({ error: 'Solo superadministradores' })
+  next()
+}
+
+const PLANES = {
+  '1mes':  { label: '1 Mes',   dias: 30 },
+  '6meses':{ label: '6 Meses', dias: 180 },
+  '1año':  { label: '1 Año',   dias: 365 },
+}
+
+// Ver todos los usuarios (superadmin)
+app.get('/api/superadmin/usuarios', auth, superAdminOnly, async (req, res) => {
+  const rows = await db.usuarios.find({}).sort({ creado_en: 1 })
+  res.json(rows.map(u => ({
+    id: u._id, nombre: u.nombre, usuario: u.usuario, rol: u.rol,
+    activo: u.activo, creado_en: u.creado_en,
+    plan: u.plan || null, plan_expira: u.plan_expira || null,
+  })))
+})
+
+// Asignar / renovar plan a un admin
+app.post('/api/superadmin/usuarios/:id/plan', auth, superAdminOnly, async (req, res) => {
+  const { plan } = req.body // '1mes' | '6meses' | '1año'
+  if (!PLANES[plan]) return res.status(400).json({ error: 'Plan inválido. Usa: 1mes, 6meses, 1año' })
+  const user = await db.usuarios.findOne({ _id: req.params.id })
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
+
+  const ahora = new Date()
+  // Si tiene plan activo, extender desde la fecha de expiración; si no, desde hoy
+  const base = user.plan_expira && new Date(user.plan_expira) > ahora
+    ? new Date(user.plan_expira)
+    : ahora
+  const expira = new Date(base.getTime() + PLANES[plan].dias * 24 * 60 * 60 * 1000)
+
+  await db.usuarios.update({ _id: req.params.id }, { $set: {
+    plan, plan_expira: expira.toISOString(), activo: true
+  }})
+  res.json({ ok: true, plan, plan_expira: expira.toISOString() })
+})
+
+// Reiniciar plan (desactivar acceso)
+app.post('/api/superadmin/usuarios/:id/reset-plan', auth, superAdminOnly, async (req, res) => {
+  await db.usuarios.update({ _id: req.params.id }, { $set: {
+    plan: null, plan_expira: null, activo: false
+  }})
+  res.json({ ok: true })
+})
+
+// Cambiar contraseña de cualquier usuario
+app.put('/api/superadmin/usuarios/:id/password', auth, superAdminOnly, async (req, res) => {
+  const { password } = req.body
+  if (!password || password.length < 6) return res.status(400).json({ error: 'Contraseña mínima 6 caracteres' })
+  await db.usuarios.update({ _id: req.params.id }, { $set: { password: bcrypt.hashSync(password, 10) } })
+  res.json({ ok: true })
+})
+
+// Verificar plan al hacer login — bloquear si expiró
+const checkPlan = async (req, res, next) => {
+  if (req.user.rol === 'superadmin') return next()
+  const user = await db.usuarios.findOne({ _id: req.user.id })
+  if (!user) return res.status(401).json({ error: 'Usuario no encontrado' })
+  if (user.plan_expira && new Date(user.plan_expira) < new Date()) {
+    await db.usuarios.update({ _id: req.user.id }, { $set: { activo: false } })
+    return res.status(403).json({ error: 'Plan expirado. Contacta al administrador.' })
+  }
+  next()
+}
+
+// Seed superadmin
+async function seedSuperAdmin() {
+  const existe = await db.usuarios.findOne({ usuario: 'superadmin' })
+  if (!existe) {
+    const hash = bcrypt.hashSync('D4n3r&2026*.', 10)
+    await db.usuarios.insert({
+      nombre: 'Super Administrador', usuario: 'superadmin',
+      password: hash, rol: 'superadmin', activo: true, creado_en: now()
+    })
+    console.log('✅ Superadmin creado')
+  }
+}
+seedSuperAdmin().catch(console.error)
 
 app.listen(PORT, () => console.log(`🍺 Enjoy Cheladas POS → http://localhost:${PORT}`))
