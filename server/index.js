@@ -111,12 +111,17 @@ app.post('/api/auth/login', rateLimit(10, 5 * 60 * 1000), async (req, res) => {
 })
 
 // ── USUARIOS ─────────────────────────────────────────────────────────────────
-app.get('/api/usuarios', auth, adminOnly, async (req, res) => {
+const adminOrSuper = (req, res, next) => {
+  if (req.user.rol !== 'admin' && req.user.rol !== 'superadmin') return res.status(403).json({ error: 'Solo administradores' })
+  next()
+}
+
+app.get('/api/usuarios', auth, adminOrSuper, async (req, res) => {
   const rows = await db.usuarios.find({}).sort({ creado_en: 1 })
   res.json(rows.map(u => ({ id: u._id, nombre: u.nombre, usuario: u.usuario, rol: u.rol, activo: u.activo, creado_en: u.creado_en })))
 })
 
-app.post('/api/usuarios', auth, adminOnly, async (req, res) => {
+app.post('/api/usuarios', auth, adminOrSuper, async (req, res) => {
   const { nombre, usuario, password, rol } = req.body
   if (!nombre?.trim() || !usuario?.trim() || !password) return res.status(400).json({ error: 'Faltan campos requeridos' })
   if (password.length < 6) return res.status(400).json({ error: 'Contraseña mínima 6 caracteres' })
@@ -128,7 +133,7 @@ app.post('/api/usuarios', auth, adminOnly, async (req, res) => {
   } catch { res.status(400).json({ error: 'El nombre de usuario ya existe' }) }
 })
 
-app.put('/api/usuarios/:id', auth, adminOnly, async (req, res) => {
+app.put('/api/usuarios/:id', auth, adminOrSuper, async (req, res) => {
   const { nombre, rol, activo, password } = req.body
   const upd = { nombre, rol, activo }
   if (password) upd.password = bcrypt.hashSync(password, 10)
@@ -136,7 +141,7 @@ app.put('/api/usuarios/:id', auth, adminOnly, async (req, res) => {
   res.json({ ok: true })
 })
 
-app.delete('/api/usuarios/:id', auth, adminOnly, async (req, res) => {
+app.delete('/api/usuarios/:id', auth, adminOrSuper, async (req, res) => {
   if (req.params.id === req.user.id) return res.status(400).json({ error: 'No puedes eliminarte' })
   await db.usuarios.update({ _id: req.params.id }, { $set: { activo: false } })
   res.json({ ok: true })
@@ -1151,7 +1156,29 @@ const checkPlan = async (req, res, next) => {
   next()
 }
 
-// Seed superadmin
+// Limpiar BD — elimina ventas, inventario, caja, movimientos (conserva usuarios y config)
+app.post('/api/superadmin/limpiar-bd', auth, superAdminOnly, async (req, res) => {
+  try {
+    await db.ventas.remove({}, { multi: true })
+    await db.ventaItems.remove({}, { multi: true })
+    await db.productos.remove({}, { multi: true })
+    await db.insumos.remove({}, { multi: true })
+    await db.recetas.remove({}, { multi: true })
+    await db.caja.remove({}, { multi: true })
+    await db.movimientos.remove({}, { multi: true })
+    await db.compras.remove({}, { multi: true })
+    await db.combos.remove({}, { multi: true })
+    await db.clientes.remove({}, { multi: true })
+    // Compactar las colecciones
+    db.ventas.compactDatafile()
+    db.ventaItems.compactDatafile()
+    db.productos.compactDatafile()
+    db.insumos.compactDatafile()
+    db.caja.compactDatafile()
+    db.movimientos.compactDatafile()
+    res.json({ ok: true, mensaje: 'Base de datos limpiada. Usuarios y configuración conservados.' })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 async function seedSuperAdmin() {
   const existe = await db.usuarios.findOne({ usuario: 'superadmin' })
   if (!existe) {

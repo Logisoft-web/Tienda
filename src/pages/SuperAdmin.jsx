@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
-import { Shield, RefreshCw, Key, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { Shield, RefreshCw, Key, Calendar, CheckCircle, XCircle, Clock, Trash2, Database } from 'lucide-react'
 
 const PLANES = [
   { id: '1mes',   label: '1 Mes',   dias: 30,  color: '#3b82f6' },
@@ -57,6 +57,24 @@ export default function SuperAdmin() {
     } catch (e) { mostrarMsg(e.message, 'error') }
   }
 
+  const eliminarUsuario = async (userId, nombre) => {
+    if (!confirm(`¿Eliminar permanentemente a "${nombre}"? Esta acción no se puede deshacer.`)) return
+    try {
+      await api.deleteUsuario(userId)
+      mostrarMsg('Usuario eliminado')
+      cargar()
+    } catch (e) { mostrarMsg(e.message, 'error') }
+  }
+
+  const limpiarBD = async () => {
+    if (!confirm('⚠️ ¿Limpiar TODA la base de datos? Se eliminarán ventas, inventario, caja y movimientos. Los usuarios se conservan.')) return
+    if (!confirm('¿Estás seguro? Esta acción es IRREVERSIBLE.')) return
+    try {
+      await api.superAdminLimpiarBD()
+      mostrarMsg('Base de datos limpiada correctamente')
+    } catch (e) { mostrarMsg(e.message, 'error') }
+  }
+
   const cambiarPassword = async (userId) => {
     if (!nuevaPass || nuevaPass.length < 6) { mostrarMsg('Mínimo 6 caracteres', 'error'); return }
     try {
@@ -80,10 +98,16 @@ export default function SuperAdmin() {
             <p className="text-xs text-gray-500">Gestión de planes y accesos</p>
           </div>
         </div>
-        <button onClick={cargar}
-          className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
-          <RefreshCw size={16} className={`text-gray-500 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex gap-2">
+          <button onClick={limpiarBD}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200">
+            <Database size={14} /> Limpiar BD
+          </button>
+          <button onClick={cargar}
+            className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+            <RefreshCw size={16} className={`text-gray-500 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Mensaje */}
@@ -147,7 +171,7 @@ export default function SuperAdmin() {
                     </td>
                     <td className="py-3 px-4">
                       {u.rol !== 'superadmin' && (
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
                           <button onClick={() => setModalPlan(u)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
                             style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}>
@@ -159,10 +183,14 @@ export default function SuperAdmin() {
                           </button>
                           {u.plan && (
                             <button onClick={() => resetPlan(u.id)}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100">
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-500 hover:bg-orange-100">
                               <XCircle size={12} /> Reset
                             </button>
                           )}
+                          <button onClick={() => eliminarUsuario(u.id, u.nombre)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100">
+                            <Trash2 size={12} /> Eliminar
+                          </button>
                         </div>
                       )}
                     </td>
