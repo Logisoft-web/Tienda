@@ -534,11 +534,16 @@ app.post('/api/ventas', auth, async (req, res) => {
           }
         }
       } else {
-        // Combo: descontar cada producto del combo
+        // Combo: descontar cada producto del combo respetando porcion_venta
         const combo = await db.combos.findOne({ _id: item.combo_id })
         if (combo?.items?.length) {
           for (const ci of combo.items) {
-            await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -(ci.cantidad * item.cantidad) } })
+            const prod = await db.productos.findOne({ _id: ci.producto_id })
+            // Si el producto se mide por peso/volumen, descontar porcion_venta por cada unidad vendida
+            const descuento = (prod?.porcion_venta > 1)
+              ? prod.porcion_venta * ci.cantidad * item.cantidad
+              : ci.cantidad * item.cantidad
+            await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -descuento } })
           }
         }
       }
