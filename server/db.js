@@ -29,10 +29,10 @@ db.ventas.ensureIndex({ fieldName: 'folio', unique: true })
 
 // Seed admin por defecto
 async function seed() {
-  const admin = await db.usuarios.findOne({ usuario: 'admin' })
+  const superadmin = await db.usuarios.findOne({ rol: 'superadmin' })
   const productosExistentes = await db.productos.count({})
-  // Solo correr seed si NO existe el admin Y NO hay productos — doble protección
-  if (!admin && productosExistentes === 0) {
+  // Solo correr seed si NO existe superadmin Y NO hay productos — doble protección
+  if (!superadmin && productosExistentes === 0) {
     const hash = bcrypt.hashSync('admin123', 10)
     await db.usuarios.insert({ nombre: 'Administrador', usuario: 'admin', password: hash, rol: 'admin', activo: true, creado_en: new Date().toISOString() })
 
