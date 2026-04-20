@@ -87,6 +87,9 @@ export default function Ventas() {
   const procesarVenta = async () => {
     if (!carrito.length) return
     if (metodo === 'efectivo' && parseFloat(montoRecibido||0) < total) { setError('Monto insuficiente'); return }
+    if (metodo === 'efectivo' && cambio > 0 && cambio > (cajaActual?.efectivo_disponible || 0)) {
+      setError(`Saldo en caja insuficiente para dar cambio de $${cambio.toLocaleString('es-CO')}. Saldo disponible: $${(cajaActual?.efectivo_disponible||0).toLocaleString('es-CO')}`); return
+    }
     setError(''); setProcesando(true)
     try {
       const result = await api.createVenta({
@@ -328,7 +331,13 @@ export default function Ventas() {
                 onChange={e => setMontoRecibido(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
                 style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
-              {cambio > 0 && (
+              {cambio > 0 && cambio > (cajaActual?.efectivo_disponible || 0) && (
+                <p className="text-xs font-bold mt-1.5 text-center rounded-lg py-1.5"
+                  style={{ background:'var(--danger-bg)', color:'var(--danger)' }}>
+                  ⚠️ Saldo en caja insuficiente para dar ${cambio.toLocaleString('es-CO')} de cambio
+                </p>
+              )}
+              {cambio > 0 && cambio <= (cajaActual?.efectivo_disponible || 0) && (
                 <p className="text-sm font-bold mt-1.5 text-center rounded-lg py-1.5"
                   style={{ background:'var(--success-bg)', color:'var(--success)' }}>
                   💵 Cambio: ${cambio.toLocaleString('es-CO')}
