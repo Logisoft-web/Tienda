@@ -167,22 +167,19 @@ export default function Ventas() {
         {/* Grid */}
         <div className="flex-1 overflow-y-auto p-3">
           {tab === 'combos' && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
               {combosFiltrados.map(c => (
                 <button key={c.id} onClick={() => agregarCombo(c)}
                   className="rounded-2xl text-left transition-all active:scale-95 overflow-hidden"
-                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div className="w-full h-28 flex items-center justify-center text-5xl"
+                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
+                  <div className="w-full aspect-square flex items-center justify-center text-4xl"
                     style={{ background:'linear-gradient(135deg, rgba(244,98,42,0.09), rgba(244,98,42,0.03))' }}>
                     {c.icono || '🎁'}
                   </div>
-                  <div className="p-3">
-                    <p className="text-sm font-bold leading-tight truncate" style={{ color:'var(--text-primary)' }}>{c.nombre}</p>
-                    <p className="text-base font-bold mt-1" style={{ color:'var(--primary)' }}>
+                  <div className="p-2">
+                    <p className="text-xs font-bold leading-tight truncate" style={{ color:'var(--text-primary)' }}>{c.nombre}</p>
+                    <p className="text-sm font-bold mt-0.5" style={{ color:'var(--primary)' }}>
                       ${Number(c.precio||0).toLocaleString('es-CO')}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color:'var(--text-dim)' }}>
-                      {(c.items||[]).reduce((s,i)=>s+i.cantidad,0)} productos
                     </p>
                   </div>
                 </button>
@@ -196,23 +193,23 @@ export default function Ventas() {
           )}
 
           {tab === 'productos' && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
               {prodsFiltrados.map(p => {
                 const sinStock = p.stock <= 0
                 return (
                   <button key={p.id} onClick={() => !sinStock && agregarProducto(p)} disabled={sinStock}
                     className="rounded-2xl text-left transition-all active:scale-95 disabled:opacity-40 overflow-hidden"
-                    style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+                    style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                     {p.imagen
-                      ? <img src={p.imagen} alt={p.nombre} className="w-full h-28 object-cover"/>
-                      : <div className="w-full h-28 flex items-center justify-center text-5xl"
+                      ? <img src={p.imagen} alt={p.nombre} className="w-full aspect-square object-cover"/>
+                      : <div className="w-full aspect-square flex items-center justify-center text-4xl"
                           style={{ background:'rgba(244,98,42,0.07)' }}>
                           {p.emoji || '🛒'}
                         </div>
                     }
-                    <div className="p-3">
-                      <p className="text-sm font-bold leading-tight" style={{ color:'var(--text-primary)' }}>{p.nombre}</p>
-                      <p className="text-base font-bold mt-1" style={{ color: sinStock ? 'var(--danger)' : 'var(--primary)' }}>
+                    <div className="p-2">
+                      <p className="text-xs font-bold leading-tight truncate" style={{ color:'var(--text-primary)' }}>{p.nombre}</p>
+                      <p className="text-sm font-bold mt-0.5" style={{ color: sinStock ? 'var(--danger)' : 'var(--primary)' }}>
                         {sinStock ? 'Sin stock' : `$${Number(p.precio||0).toLocaleString('es-CO')}`}
                       </p>
                     </div>
