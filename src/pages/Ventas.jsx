@@ -176,7 +176,7 @@ export default function Ventas() {
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
               {combosFiltrados.map(c => (
                 <button key={c.id} onClick={() => agregarCombo(c)}
-                  className="relative rounded-2xl overflow-hidden transition-all active:scale-95"
+                  className="product-card ripple-container relative rounded-2xl overflow-hidden"
                   style={{ aspectRatio:'1/1', background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div className="absolute inset-0 flex items-center justify-center text-4xl"
                     style={{ background:'linear-gradient(135deg, rgba(244,98,42,0.09), rgba(244,98,42,0.03))' }}>
@@ -203,7 +203,7 @@ export default function Ventas() {
                 const sinStock = p.stock <= 0
                 return (
                   <button key={p.id} onClick={() => !sinStock && agregarProducto(p)} disabled={sinStock}
-                    className="relative rounded-2xl overflow-hidden transition-all active:scale-95 disabled:opacity-40"
+                    className="product-card ripple-container relative rounded-2xl overflow-hidden disabled:opacity-40"
                     style={{ aspectRatio:'1/1', background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                     {p.imagen
                       ? <img src={p.imagen} alt={p.nombre} className="absolute inset-0 w-full h-full object-cover"/>

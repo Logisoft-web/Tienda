@@ -123,7 +123,7 @@ export default function Layout() {
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {items.map(({ to, icon: Icon, label, exact }) => (
             <NavLink key={to} to={to} end={exact}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 group"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 group ripple-container nav-item"
               style={({ isActive }) => isActive
                 ? { background: 'rgba(244,98,42,0.1)', color: 'var(--primary)' }
                 : { color: 'var(--text-muted)' }

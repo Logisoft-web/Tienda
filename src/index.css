@@ -147,6 +147,114 @@ body {
   opacity: 0.9;
 }
 
+/* ── Hover & Active global para elementos interactivos ── */
+
+/* Botones genéricos */
+button:not(:disabled) {
+  transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+button:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+button:not(:disabled):active {
+  transform: scale(0.96);
+  filter: brightness(0.96);
+}
+
+/* Links de navegación */
+a {
+  transition: opacity 0.15s ease;
+}
+
+/* Tarjetas / elementos clicables */
+[role="button"],
+.card-interactive {
+  transition: transform 0.15s cubic-bezier(0.16,1,0.3,1),
+              box-shadow 0.15s cubic-bezier(0.16,1,0.3,1),
+              background 0.15s ease;
+  cursor: pointer;
+}
+[role="button"]:hover,
+.card-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(244,98,42,0.12);
+}
+[role="button"]:active,
+.card-interactive:active {
+  transform: scale(0.97) translateY(0);
+  box-shadow: none;
+}
+
+/* Inputs */
+input:not([readonly]):not([disabled]),
+select:not([disabled]),
+textarea:not([disabled]) {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: text;
+}
+input:not([readonly]):not([disabled]):hover,
+select:not([disabled]):hover {
+  border-color: rgba(244,98,42,0.35) !important;
+}
+
+/* Cursor pointer en elementos interactivos que no son button/a */
+[onClick], label[for] {
+  cursor: pointer;
+}
+
+/* Nav items sidebar */
+.nav-item:not([aria-current="page"]):hover {
+  background: var(--bg-raised) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Bottom nav items */
+.bottom-nav-item:not([aria-current="page"]):hover {
+  color: var(--primary) !important;
+  opacity: 0.75;
+}
+
+/* Tarjetas de producto/combo en ventas */
+.product-card {
+  transition: transform 0.15s cubic-bezier(0.16,1,0.3,1),
+              box-shadow 0.15s cubic-bezier(0.16,1,0.3,1);
+}
+.product-card:not(:disabled):hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(244,98,42,0.14);
+}
+.product-card:not(:disabled):active {
+  transform: scale(0.96);
+  box-shadow: none;
+  transition-duration: 0.08s;
+}
+
+/* Ripple effect al hacer clic */
+@keyframes ripple {
+  from { transform: scale(0); opacity: 0.35; }
+  to   { transform: scale(2.5); opacity: 0; }
+}
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--rx, 50%) var(--ry, 50%),
+    rgba(244,98,42,0.25) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.ripple-container:active::after {
+  opacity: 1;
+  transition: opacity 0s;
+}
+
 @media print {
   body * { visibility: hidden; }
   #factura-print, #factura-print * { visibility: visible; }
