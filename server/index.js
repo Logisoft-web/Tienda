@@ -393,6 +393,15 @@ app.post('/api/ventas', auth, async (req, res) => {
   try {
     // ── Validar stock antes de procesar ──────────────────────────────────────
     for (const item of items) {
+      // Chelada configurada por pasos (nuevo sistema): validar que los combos existan
+      if (item.es_chelada && item.combos_ids?.length) {
+        for (const cid of item.combos_ids) {
+          const c = await db.combos.findOne({ _id: cid })
+          if (!c) return res.status(400).json({ error: 'Combo no encontrado: ' + cid })
+        }
+        continue // saltar validación del sistema viejo
+      }
+
       if (item.es_chelada && item.detalle) {
         const { sabor, bebida, adiciones: adics } = item.detalle
 
@@ -541,8 +550,23 @@ app.post('/api/ventas', auth, async (req, res) => {
             }
           }
         }
+        // ── Chelada configurada por pasos: descontar items de cada combo ──
+        if (item.es_chelada && item.combos_ids?.length) {
+          const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
+          for (const cid of item.combos_ids) {
+            const c = await db.combos.findOne({ _id: cid })
+            if (c?.items?.length) {
+              for (const ci of c.items) {
+                const prod = await db.productos.findOne({ _id: ci.producto_id })
+                const esMedida = UNIDADES_MEDIDA.includes(prod?.unidad)
+                const porcion = (esMedida && prod?.porcion_venta > 0) ? prod.porcion_venta : 1
+                await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -(porcion * ci.cantidad * item.cantidad) } })
+              }
+            }
+          }
+        }
       } else {
-        // Combo: descontar cada producto del combo respetando porcion_venta
+        // Combo normal: descontar cada producto del combo respetando porcion_venta
         const combo = await db.combos.findOne({ _id: item.combo_id })
         if (combo?.items?.length) {
           const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
@@ -552,6 +576,22 @@ app.post('/api/ventas', auth, async (req, res) => {
             const porcion = (esMedida && prod?.porcion_venta > 0) ? prod.porcion_venta : 1
             const descuento = porcion * ci.cantidad * item.cantidad
             await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -descuento } })
+          }
+        }
+
+        // Chelada configurada por pasos: descontar items de cada combo seleccionado
+        if (item.es_chelada && item.combos_ids?.length) {
+          const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
+          for (const cid of item.combos_ids) {
+            const c = await db.combos.findOne({ _id: cid })
+            if (c?.items?.length) {
+              for (const ci of c.items) {
+                const prod = await db.productos.findOne({ _id: ci.producto_id })
+                const esMedida = UNIDADES_MEDIDA.includes(prod?.unidad)
+                const porcion = (esMedida && prod?.porcion_venta > 0) ? prod.porcion_venta : 1
+                await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -(porcion * ci.cantidad * item.cantidad) } })
+              }
+            }
           }
         }
       }
@@ -961,16 +1001,30 @@ app.get('/api/combos', auth, async (req, res) => {
 })
 
 app.post('/api/combos', auth, adminOnly, async (req, res) => {
-  const { nombre, descripcion, precio, items, icono } = req.body
-  if (!nombre?.trim() || !precio) return res.status(400).json({ error: 'Nombre y precio requeridos' })
+  const { nombre, descripcion, precio, items, icono, categoria, sabor, bebidas, adiciones, borde } = req.body
+  if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+  const sinPrecio = categoria === '1' || categoria === '4'
+  if (!sinPrecio && (precio === undefined || precio === null || precio === '')) return res.status(400).json({ error: 'Precio requerido para esta categoria' })
   if (!items?.length) return res.status(400).json({ error: 'El combo debe tener al menos un producto' })
-  const doc = await db.combos.insert({ nombre: nombre.trim(), descripcion: descripcion||'', precio: +precio, items, icono: icono||'🎁', activo: true, creado_en: now() })
+  if (categoria === '2' && items.length < 2) return res.status(400).json({ error: 'Categoria 2 requiere minimo 2 productos' })
+  const doc = await db.combos.insert({
+    nombre: nombre.trim(), descripcion: descripcion||'', precio: sinPrecio ? 0 : +precio,
+    items, icono: icono||'🎁', categoria: categoria||'', sabor: sabor||'',
+    bebidas: bebidas||[], adiciones: adiciones||[], borde: borde||'',
+    activo: true, creado_en: now()
+  })
   res.json({ id: doc._id })
 })
 
 app.put('/api/combos/:id', auth, adminOnly, async (req, res) => {
-  const { nombre, descripcion, precio, items, activo, icono } = req.body
-  await db.combos.update({ _id: req.params.id }, { $set: { nombre, descripcion, precio: +precio, items, icono: icono||'🎁', activo: activo ?? true } })
+  const { nombre, descripcion, precio, items, activo, icono, categoria, sabor, bebidas, adiciones, borde } = req.body
+  const sinPrecio = categoria === '1' || categoria === '4'
+  await db.combos.update({ _id: req.params.id }, { $set: {
+    nombre, descripcion, precio: sinPrecio ? 0 : +precio,
+    items, icono: icono||'🎁', activo: activo ?? true,
+    categoria: categoria||'', sabor: sabor||'',
+    bebidas: bebidas||[], adiciones: adiciones||[], borde: borde||''
+  }})
   res.json({ ok: true })
 })
 

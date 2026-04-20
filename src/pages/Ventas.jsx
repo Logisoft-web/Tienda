@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
-import { ShoppingCart, CreditCard, Banknote, Smartphone, CheckCircle, X, Minus, Plus, Trash2, AlertTriangle, Search } from 'lucide-react'
+import { ShoppingCart, CreditCard, Banknote, Smartphone, CheckCircle, X, Minus, Plus, Trash2, AlertTriangle, Search, ChevronRight, Check } from 'lucide-react'
 
 const METODOS = [
   { id: 'efectivo',      label: 'Efectivo',      icon: Banknote },
@@ -15,6 +15,141 @@ const MENSAJES = [
   '¡Vuelve pronto, te esperamos! ✨',
   '¡La mejor elección del día! 🌟',
 ]
+
+// ── Configurador inline (embebido en el panel izquierdo) ─────────────────────
+const PASOS = ['Sabor', 'Bebida', 'Adicion', 'Borde']
+
+function ConfiguradorInline({ combos, onConfirmar, onCancelar }) {
+  const [paso,    setPaso]    = useState(0)
+  const [sabor,   setSabor]   = useState(null)
+  const [bebida,  setBebida]  = useState(null)
+  const [adicion, setAdicion] = useState(null)
+  const [borde,   setBorde]   = useState(null)
+
+  const cat1 = combos.filter(c => String(c.categoria) === '1')
+  const cat2 = combos.filter(c => String(c.categoria) === '2')
+  const cat3 = combos.filter(c => String(c.categoria) === '3')
+  const cat4 = combos.filter(c => String(c.categoria) === '4')
+
+  const opciones  = [cat1, cat2, cat3, cat4][paso]
+  const seleccion = [sabor, bebida, adicion, borde][paso]
+  const setters   = [setSabor, setBebida, setAdicion, setBorde]
+  const esOpcional = paso === 2 || paso === 3
+
+  const confirmar = () => {
+    if (!sabor || !bebida) return
+    const precio = (bebida.precio || 0) + (adicion ? (adicion.precio || 0) : 0)
+    const nombre = sabor.nombre + ' - ' + bebida.nombre +
+      (adicion ? ' + ' + adicion.nombre : '') +
+      (borde   ? ' | Borde: ' + borde.nombre : '')
+    onConfirmar({ nombre, precio, icono: sabor.icono || '🍓', sabor, bebida, adicion, borde })
+  }
+
+  const siguiente = () => {
+    if (!esOpcional && !seleccion) return
+    if (paso < 3) setPaso(paso + 1)
+    else confirmar()
+  }
+
+  const saltarOpcional = () => {
+    setters[paso](null)
+    if (paso < 3) setPaso(paso + 1)
+    else confirmar()
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Indicador de pasos */}
+      <div className="flex gap-2 mb-4">
+        {PASOS.map((p, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full h-1.5 rounded-full"
+              style={{ background: i <= paso ? 'var(--primary)' : 'var(--border)' }} />
+            <span className="text-xs font-semibold"
+              style={{ color: i === paso ? 'var(--primary)' : 'var(--text-dim)' }}>{p}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Opciones */}
+      <div className="flex-1 overflow-y-auto space-y-2">
+        {opciones.length === 0 ? (
+          <p className="text-center text-sm py-8" style={{ color: 'var(--text-dim)' }}>
+            No hay opciones. Puedes saltarla.
+          </p>
+        ) : opciones.map(c => {
+          const isSelected = seleccion?.id === c.id || seleccion?._id === c._id
+          return (
+            <button key={c.id || c._id} onClick={() => setters[paso](c)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-all"
+              style={{
+                background: isSelected ? 'rgba(244,98,42,0.08)' : 'var(--bg-raised)',
+                border: '2px solid ' + (isSelected ? 'var(--primary)' : 'var(--border)'),
+              }}>
+              <span className="text-2xl shrink-0">{c.icono || '🍹'}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{c.nombre}</p>
+                {c.precio > 0 && (
+                  <p className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+                    ${Number(c.precio).toLocaleString('es-CO')}
+                  </p>
+                )}
+              </div>
+              {isSelected && (
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--primary)' }}>
+                  <Check size={13} color="#fff" />
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Resumen parcial */}
+      {(sabor || bebida) && (
+        <div className="py-2 text-xs" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+          {[sabor?.nombre, bebida?.nombre, adicion?.nombre, borde?.nombre].filter(Boolean).join(' · ')}
+          {(bebida || adicion) && (
+            <span className="ml-2 font-bold" style={{ color: 'var(--primary)' }}>
+              ${((bebida?.precio||0) + (adicion?.precio||0)).toLocaleString('es-CO')}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Botones */}
+      <div className="flex gap-2 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <button onClick={onCancelar}
+          className="px-3 py-2.5 rounded-xl text-xs font-semibold"
+          style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+          Cancelar
+        </button>
+        {paso > 0 && (
+          <button onClick={() => setPaso(paso - 1)}
+            className="px-3 py-2.5 rounded-xl text-xs font-semibold"
+            style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            Atras
+          </button>
+        )}
+        {esOpcional && (
+          <button onClick={saltarOpcional}
+            className="px-3 py-2.5 rounded-xl text-xs font-semibold"
+            style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            Saltar
+          </button>
+        )}
+        <button onClick={siguiente}
+          disabled={!esOpcional && !seleccion}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
+          {paso === 3 ? 'Agregar al pedido' : 'Siguiente'}
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function Ventas() {
   const [carrito, setCarrito]             = useState([])
@@ -33,6 +168,7 @@ export default function Ventas() {
   const [combos, setCombos]               = useState([])
   const [tab, setTab]                     = useState('combos')
   const [busqueda, setBusqueda]           = useState('')
+  const [configurando, setConfigurando]   = useState(false)
 
   const navigate = useNavigate()
 
@@ -59,14 +195,33 @@ export default function Ventas() {
     })
   }
 
-  const agregarCombo = (combo) => {
-    setCarrito(prev => {
-      const existe = prev.find(i => i.es_combo && i.combo_id === combo.id)
-      if (existe) return prev.map(i => i.es_combo && i.combo_id === combo.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { _key: Date.now(), combo_id: combo.id, nombre: combo.nombre,
-        precio_unitario: combo.precio || 0, cantidad: 1, es_combo: true, es_chelada: false,
-        imagen: combo.imagen || null, icono: combo.icono || '🎁' }]
-    })
+  const agregarCombo = () => setConfigurando(true)
+
+  const confirmarChelada = ({ nombre, precio, icono, sabor, bebida, adicion, borde }) => {
+    setCarrito(prev => [...prev, {
+      _key:            Date.now(),
+      combo_id:        null,
+      nombre,
+      precio_unitario: precio,
+      cantidad:        1,
+      es_combo:        false,
+      es_chelada:      true,
+      icono,
+      // Enviamos los IDs reales de los combos para que el servidor descuente sus items
+      combos_ids: [
+        sabor  ? (sabor.id  || sabor._id)  : null,
+        bebida ? (bebida.id || bebida._id) : null,
+        adicion ? (adicion.id || adicion._id) : null,
+        borde  ? (borde.id  || borde._id)  : null,
+      ].filter(Boolean),
+      detalle: {
+        sabor:     sabor    ? { id: sabor.id    || sabor._id,    nombre: sabor.nombre    } : null,
+        bebida:    bebida   ? { id: bebida.id   || bebida._id,   nombre: bebida.nombre,  precio: bebida.precio  } : null,
+        adiciones: adicion  ? [{ id: adicion.id || adicion._id,  nombre: adicion.nombre, precio: adicion.precio }] : [],
+        borde:     borde    ? { id: borde.id    || borde._id,    nombre: borde.nombre    } : null,
+      }
+    }])
+    setConfigurando(false)
   }
 
   const cambiarCantidad = (key, delta) => {
@@ -91,7 +246,7 @@ export default function Ventas() {
     if (metodo === 'efectivo' && cambio > 0 && cambio > (cajaActual?.efectivo_disponible || 0)) {
       setError(`Saldo en caja insuficiente para dar cambio de $${cambio.toLocaleString('es-CO')}. Saldo disponible: $${(cajaActual?.efectivo_disponible||0).toLocaleString('es-CO')}`); return
     }
-    const tieneCombo = carrito.some(i => i.es_combo)
+    const tieneCombo = carrito.some(i => i.es_combo || i.es_chelada)
     if (tieneCombo && !nombreCliente.trim()) { setError('El nombre del cliente es obligatorio para pedidos con combo'); return }
     setError(''); setProcesando(true)
     try {
@@ -147,8 +302,8 @@ export default function Ventas() {
           </div>
           <div className="flex gap-2">
             {[
-              { id:'combos',    label:'Combos',    emoji:'🎁' },
-              { id:'productos', label:'Productos', emoji:'🛒' },
+              { id:'combos',    label:'Arma tu Chelada', emoji:'🍹' },
+              { id:'productos', label:'Productos',        emoji:'🛒' },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5"
@@ -172,29 +327,27 @@ export default function Ventas() {
 
         {/* Grid */}
         <div className="flex-1 overflow-y-auto p-3">
-          {tab === 'combos' && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-              {combosFiltrados.map(c => (
-                <button key={c.id} onClick={() => agregarCombo(c)}
-                  className="product-card ripple-container relative rounded-2xl overflow-hidden"
-                  style={{ aspectRatio:'1/1', background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div className="absolute inset-0 flex items-center justify-center text-4xl"
-                    style={{ background:'linear-gradient(135deg, rgba(244,98,42,0.09), rgba(244,98,42,0.03))' }}>
-                    {c.icono || '🎁'}
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 p-2"
-                    style={{ background:'linear-gradient(to top, var(--bg-card) 70%, transparent)' }}>
-                    <p className="text-xs font-bold truncate" style={{ color:'var(--text-primary)' }}>{c.nombre}</p>
-                    <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>${Number(c.precio||0).toLocaleString('es-CO')}</p>
-                  </div>
-                </button>
-              ))}
-              {combosFiltrados.length === 0 && (
-                <div className="col-span-3 text-center py-16" style={{ color:'var(--text-dim)' }}>
-                  <p className="text-4xl mb-2">🎁</p><p className="text-sm">Sin combos creados</p>
-                </div>
-              )}
+          {tab === 'combos' && !configurando && (
+            <div className="flex flex-col items-center justify-center h-full py-8 gap-4">
+              <p className="text-6xl">🍹</p>
+              <p className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>Arma tu Chelada</p>
+              <p className="text-sm text-center" style={{ color: 'var(--text-muted)' }}>
+                Elige sabor, bebida, adicion y borde paso a paso
+              </p>
+              <button onClick={agregarCombo}
+                className="flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-bold text-base product-card"
+                style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', boxShadow: '0 4px 20px rgba(244,98,42,0.3)' }}>
+                <Plus size={20} /> Configurar Chelada
+              </button>
             </div>
+          )}
+
+          {tab === 'combos' && configurando && (
+            <ConfiguradorInline
+              combos={combos}
+              onConfirmar={confirmarChelada}
+              onCancelar={() => setConfigurando(false)}
+            />
           )}
 
           {tab === 'productos' && (
@@ -351,15 +504,15 @@ export default function Ventas() {
 
           <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
             <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>
-              👤 Cliente {carrito.some(i => i.es_combo) && <span style={{ color:'var(--danger)' }}>*</span>}
+              👤 Cliente {carrito.some(i => i.es_combo || i.es_chelada) && <span style={{ color:'var(--danger)' }}>*</span>}
             </p>
-            <input type="text" placeholder={carrito.some(i => i.es_combo) ? 'Nombre del cliente (requerido)' : 'Nombre del cliente'}
+            <input type="text" placeholder={carrito.some(i => i.es_combo || i.es_chelada) ? 'Nombre del cliente (requerido)' : 'Nombre del cliente'}
               value={nombreCliente}
               onChange={e => setNombreCliente(e.target.value)}
               className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
               style={{
                 background:'var(--bg-raised)',
-                border: `1px solid ${carrito.some(i => i.es_combo) && !nombreCliente.trim() ? 'var(--danger)' : 'var(--border)'}`,
+                border: `1px solid ${carrito.some(i => i.es_combo || i.es_chelada) && !nombreCliente.trim() ? 'var(--danger)' : 'var(--border)'}`,
                 color:'var(--text-primary)'
               }}/>
             <input type="text" placeholder="Documento (opcional)" value={docCliente}
