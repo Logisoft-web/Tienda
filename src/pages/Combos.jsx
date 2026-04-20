@@ -1,87 +1,175 @@
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
-import { Plus, Edit2, Trash2, X, Search, Package } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Package, ChevronDown, Check } from 'lucide-react'
+
+// ── Datos fijos de la carta ───────────────────────────────────────────────────
+const SABORES = [
+  'Frutos Amarillos','Sandía Hierbabuena','Pepino Limón Hierbabuena',
+  'Frutos Verdes','Fresa Mandarina','Cereza Limón',
+  'Maracuyá','Mango Biche','Coco','Lulo',
+  'Tamarindo','Limón Hierbabuena','Frutos Rojos',
+]
+
+const BEBIDAS = [
+  { nombre: 'Soda / Canada Dry 22oz · Frutas',          precio: 9000 },
+  22oz · Limón Hierbabuena', precio: 8000 },
+  { nombre: 'Soda / Canada Dry 16oz · Frutas',          precio: 8000 },
+  { nombre: 'Hatsú 22oz · Frutas',                      precio: 10000 },
+  { nombre: 'Hatsú 16oz · Frutas',                      precio: 9000 },
+  { nombre: 'Smirnoff 16oz · Frutas',                   precio: 14000 },
+]
+
+const ADICIONES = [
+  { nombre: 'Adición Fruta',          precio: 1500 },
+  { nombre: 'Adición Gomitas',        precio: 1200 },
+  { nombre: 'Frutos Rojos',           precio: 1800 },
+  { nombre: 'Frutos Verdes',          precio: 1800 },
+  { nombre: 'Adición Perlas Explosivas', precio: 2000 },
+]
+
+const BORDES = [
+  'Sal Limón','Sal Pimienta','Sal Tajín','Azúcar','Azúcar Tajín',
+]
 
 const ICONOS = [
-  '🎁','🍹','🥤','🍺','🧃','🍸',
-  '🍓','🍉','🥭','🍍','🍋','🍊','🍇','🍒','🍑','🥝',
-  '🫐','🍏','🥥','🌿','🧊','🧂','🍬','✨','🌟','💥','🎯','⭐','🔥','🎉',
+  '🍓','🍉','🥭','🍍','🍋','🍊','🍇','🍒','🍑','🥝','🫐','🍏',
+  '🥥','🌿','🧊','🍹','🥤','🍺','🧃','🍸','🎁','✨','🌟','🔥','🎉',
 ]
 
 const ic = {
   background: 'var(--bg-raised)', border: '1px solid var(--border)',
   color: 'var(--text-primary)', borderRadius: '10px',
-  padding: '8px 12px', fontSize: '14px', width: '100%'
+ '14px', width: '100%',
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmt = (n) => `$${Number(n).toLocaleString('es-CO')}`
 
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[92vh]"
+      <div className="rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[94vh]"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between px-5 py-4 shrink-0"
+   "flex items-center justify-between px-5 py-4 shrink-0"
           style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{title}</h3>
           <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
         </div>
-        <div className="p-5 overflow-y-auto space-y-4">{children}</div>
+        <div className="p-5 overflow-y-auto space-y-5">{children}</div>
       </div>
     </div>
   )
 }
 
-function FormCombo({ initial, productos, onSave, onClose }) {
-  const [nombre, setNombre] = useState(initial?.nombre || '')
-  const [descripcion, setDescripcion] = useState(initial?.descripcion || '')
-  const [precio, setPrecio] = useState(String(initial?.precio || ''))
-  const [icono, setIcono] = useState(initial?.icono || '🎁')
-  const [items, setItems] = useState(initial?.items || [])
-  const [busqueda, setBusqueda] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [msg, setMsg] = useState('')
 
-  const prodsFiltrados = productos.filter(p =>
-    p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+function ChipSelector({ label, required, items, selected, onToggle, multi = false, badge }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <label className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+          {label} {required && <span style={{ color: 'var(--danger)' }}>*</span>}
+        </label>
+        {badge && (
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+         r: 'var(--primary)' }}>
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, i) => {
+          const key   = typeof item === 'string' ? item : item.nombre
+          const price = typeof item === 'object' ? item.precio : null
+          const isOn  = multi
+            ? selected.some(s => (typeof s === 'string' ? s : s.nombre) === key)
+            : selected === key
+          return (
+            <button key={i} type="button" onClick={() => onToggle(item)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={{
+                background: isOn ? 'var(--primary)' : 'var(--bg-raised)',
+                color:      isOn ? '#fff'           : 'var(--text-secondary)',
+                border:     `1.5px solid ${isOn ? 'var(--primary)' : 'var(--border)'}`,
+              }}>
+              {isOn && <Check size={11} />}
+              {key}
+            & (
+                <span style={{ opacity: 0.85 }}>{fmt(price)}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
+}
 
-  const agregarProducto = (prod) => {
-    setItems(prev => {
-      const existe = prev.find(i => i.producto_id === prod.id)
-      if (existe) return prev.map(i => i.producto_id === prod.id ? { ...i, cantidad: i.cantidad + 1 } : i)
-      return [...prev, { producto_id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unitario: prod.precio || 0 }]
+// ── Formulario ────────────────────────────────────────────────────────────────
+function FormCombo({ initial, onSave, onClose }) {
+  // Categoría 1 — Sabor (sin precio, selección única)
+  const [sabor, setSabor] = useState(initial?.sabor || '')
+  // Categoría 2 — Bebida (con precio, mínimo 2, multi)
+  const [bebidas, setBebidas] = useState(initial?.bebidas || [])
+  // Categoría 3 — Adición (con precio, opcional, multi)
+  const [adiciones, setAdiciones] = useState(initial?.adiciones || [])
+  // Categoría 4 — Borde (sin precio, selección única)
+  const [borde, setBorde] = useState(initial?.borde || '')
+
+  const [nombre, setNombre]   = useState(initial?.nombre || '')
+  const [icono, setIcono]     = useState(initial?.icono  || '🍹')
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg]         = useState('')
+
+  // Precio total = suma bebidas + suma adiciones
+  const precioTotal = [
+    ...bebidas.map(b => b.precio),
+    ...adiciones.map(a => a.precio),
+  ].reduce((s, p) => s + p, 0)
+
+  const toggleBebida = (item) => {
+    setBebidas(prev => {
+      const existe = prev.find(b => b.nombre === item.nombre)
+      return existe ? prev.filter(b => b.nombre !== item.nombre) : [...prev, item]
     })
   }
 
-  const cambiarCantidad = (producto_id, delta) => {
-    setItems(prev => prev.map(i => {
-      if (i.producto_id !== producto_id) return i
-      const nueva = i.cantidad + delta
-      return nueva <= 0 ? null : { ...i, cantidad: nueva }
-    }).filter(Boolean))
+  const toggleAdicion = (item) => {
+    setAdiciones(prev => {
+      const existe = prev.find(a => a.nombre === item.nombre)
+      return existe ? prev.filter(a => a.nombre !== item.nombre) : [...prev, item]
+    })
   }
 
-  const quitarItem = (producto_id) => setItems(prev => prev.filter(i => i.producto_id !== producto_id))
-
-  // Precio sugerido = suma de precios de los items
-  const precioSugerido = items.reduce((s, i) => s + (i.precio_unitario * i.cantidad), 0)
-
   const guardar = async () => {
-    if (!nombre.trim()) { setMsg('Nombre requerido'); return }
-    if (!items.length) { setMsg('Agrega al menos un producto'); return }
-    if (!precio || +precio <= 0) { setMsg('Precio requerido'); return }
-    if (+precio < precioSugerido) { setMsg(`El precio del combo ($${(+precio).toLocaleString('es-CO')}) no puede ser menor a la suma de los productos ($${precioSugerido.toLocaleString('es-CO')})`); return }
+    if (!sabor)              { setMsg('Selecciona un sabor (Categoría 1)'); return }
+    if (bebidas.length < 2)  { setMsg('Selecciona mínimo 2 bebidas (Categoría 2)'); return }
+    if (!nombre.trim())      { setMsg('Escribe el nombre del combo'); return }
+
+    const items = [
+      { nombre: sabor,       cantidad: 1, precio_unitario: 0,    categoria: 'sabor'   },
+      ...bebidas.map(b  => ({ nombre:mbre,  cantidad: 1, precio_unitario: b.precio,  categoria: 'bebida'  })),
+      ...adiciones.map(a => ({ nombre: a.nombre,  cantidad: 1, precio_unitario: a.precio,  categoria: 'adicion' })),
+      ...(borde ? [{ nombre: borde, cantidad: 1, precio_unitario: 0, categoria: 'borde' }] : []),
+    ]
+
     setLoading(true)
     try {
-      await onSave({ nombre: nombre.trim(), descripcion, precio: +precio, items, icono })
+      await onSave({
+        nombre: nombre.trim(),
+        icono,
+        precio: precioTotal,
+        sabor, bebidas, adiciones, borde,
+        items,
+      })
     } catch (e) { setMsg(e.message) }
     finally { setLoading(false) }
   }
 
   return (
     <>
-      {/* Icono */}
+      {/* ── Icono ── */}
       <div>
-        <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Icono</label>
+        <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Icono</label>
         <div className="flex flex-wrap gap-2">
           {ICONOS.map(em => (
             <button key={em} type="button" onClick={() => setIcono(em)}
@@ -89,118 +177,126 @@ function FormCombo({ initial, productos, onSave, onClose }) {
               style={{
                 background: icono === em ? 'var(--primary)' : 'var(--bg-raised)',
                 border: `2px solid ${icono === em ? 'var(--primary)' : 'var(--border)'}`,
-                transform: icono === em ? 'scale(1.15)' : 'scale(1)'
+                transform: icono === em ? 'scale(1.15)' : 'scale(1)',
               }}>{em}</button>
           ))}
         </div>
       </div>
 
-      {/* Nombre */}
-      <div>
-        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Nombre <span style={{ color: 'var(--danger)' }}>*</span></label>
-        <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej: Combo Chelada + Snack"
-          className="focus:outline-none" style={ic}
-          onFocus={e => e.target.style.borderColor = 'rgba(244,98,42,0.5)'}
-          onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+      {/* ── Cat 1: Sabor (sin precio) ── */}
+      <div className="rounded-2xl p-4 space-y-3"
+        style={{ background: 'rgba(244,98,42,0.04)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+            style={{ background: 'var(--primary)' }}>1</span>
+          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Sabor</span>
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Sin costo adicional</span>
+        </div>
+        <ChipSelector
+          label="Elige el sabor"
+          required
+          items={SABORES}
+ted={sabor}
+          onToggle={(item) => setSabor(prev => prev === item ? '' : item)}
+        />
       </div>
 
-      {/* Descripción */}
-      <div>
-        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Descripción</label>
-        <input value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Opcional"
-          className="focus:outline-none" style={ic}
-          onFocus={e => e.target.style.borderColor = 'rgba(244,98,42,0.5)'}
-          onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-      </div>
-
-      {/* Productos del combo */}
-      <div>
-        <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
-          Productos del combo <span style={{ color: 'var(--danger)' }}>*</span>
-        </label>
-
-        {/* Items seleccionados */}
-        {items.length > 0 && (
-          <div className="rounded-xl p-3 mb-3 space-y-2"
-            style={{ background: 'rgba(244,98,42,0.05)', border: '1px solid var(--border)' }}>
-            {items.map(item => (
-              <div key={item.producto_id} className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text-primary)' }}>
-                  {item.nombre}
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => cambiarCantidad(item.producto_id, -1)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center text-sm font-bold"
-                    style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>−</button>
-                  <span className="w-6 text-center text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.cantidad}</span>
-                  <button onClick={() => cambiarCantidad(item.producto_id, 1)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center text-sm font-bold"
-                    style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>+</button>
-                  <button onClick={() => quitarItem(item.producto_id)}
-                    className="w-6 h-6 rounded-lg flex items-center justify-center ml-1"
-                    style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                    <X size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ── Cat 2: Bebida (con precio, mín 2) ── */}
+      <div className="rounded-2xl p-4 space-y-3"
+        style={{ background: 'rgba(37,99,235,0.04)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+ 
+          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Bebida</span>
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+            style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}>
+            Mínimo 2 · Con precio
+          </span>
+        </div>
+        <ChipSelector
+          label="Elige las bebidas"
+          required
+          items={BEBIDAS}
+          selected={bebidas}
+          onToggle={toggleBebida}
+          multi
+bidas.length > 0 ? `${bebidas.length} seleccionadas` : null}
+        />
+        {bebidas.length > 0 && bebidas.length < 2 && (
+          <p className="text-xs" style={{ color: 'var(--danger)' }}>⚠️ Selecciona al menos 2 bebidas</p>
         )}
-
-        {/* Buscador de productos */}
-        <div className="relative mb-2">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-dim)' }} />
-          <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar producto..."
-            className="w-full pl-8 pr-3 py-2 rounded-xl text-sm focus:outline-none"
-            style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />
-        </div>
-        <div className="max-h-40 overflow-y-auto rounded-xl space-y-1"
-          style={{ border: '1px solid var(--border)' }}>
-          {prodsFiltrados.length === 0
-            ? <p className="text-xs text-center py-4" style={{ color: 'var(--text-dim)' }}>Sin resultados</p>
-            : prodsFiltrados.map(p => (
-              <button key={p.id} type="button" onClick={() => agregarProducto(p)}
-                className="w-full flex items-center justify-between px-3 py-2 text-left hover:opacity-80 transition-opacity"
-                style={{ borderBottom: '1px solid var(--border)' }}>
-                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{p.nombre}</span>
-                <span className="text-xs font-bold" style={{ color: 'var(--success)' }}>
-                  ${Number(p.precio || 0).toLocaleString('es-CO')}
-                </span>
-              </button>
-            ))
-          }
-        </div>
       </div>
 
-      {/* Precio */}
+      {/* ── Cat 3: Adición (con precio, opcional) ── */}
+      <div className="rounded-2xl p-4 space-y-3"
+        style={{ background: 'rgba(22,163,74,0.04)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+            style={{ background: '#16a34a' }}>3</span>
+          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Adición</span>
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Opcional · Con precio</span>
+        </div>
+        <ChipSelector
+          label="Elige adiciones"
+          items={ADICIONES}
+          selected={adiciones}
+          onToggleAdicion}
+          multi
+          badge={adiciones.length > 0 ? `${adiciones.length} seleccionadas` : null}
+        />
+      </div>
+
+      {/* ── Cat 4: Borde (sin precio) ── */}
+      <div className="rounded-2xl p-4 space-y-3"
+        style={{ background: 'rgba(124,58,237,0.04)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+            style={{ background: '#7c3aed' }}>4</span>
+          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Borde</span>
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Opcional · Sin costo</span>
+        </div>
+        <ChipSelector
+          label="Elige el borde"
+          items={BORDES}
+          selected={borde}
+          onToggle={(item) => setBorde(prev => prev === item ? '' : item)}
+        />
+      </div>
+
+      {/* ── Nombre del combo ── */}
       <div>
-        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-          Precio del combo <span style={{ color: 'var(--danger)' }}>*</span>
+        <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+          Nombre del combo <span style={{ color: 'var(--danger)' }}>*</span>
         </label>
-        <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} placeholder="0"
-          className="focus:outline-none" style={{ ...ic, borderColor: precioSugerido > 0 && +precio < precioSugerido ? 'var(--danger)' : 'var(--border)' }}
-          onFocus={e => e.target.style.borderColor = precioSugerido > 0 && +precio < precioSugerido ? 'var(--danger)' : 'rgba(244,98,42,0.5)'}
-          onBlur={e => e.target.style.borderColor = precioSugerido > 0 && +precio < precioSugerido ? 'var(--danger)' : 'var(--border)'} />
-        {precioSugerido > 0 && (
-          <div className="flex items-center justify-between mt-1">
-            <p className="text-xs" style={{ color: +precio < precioSugerido ? 'var(--danger)' : 'var(--text-dim)' }}>
-              {+precio < precioSugerido
-                ? `⚠️ Precio menor a la suma de productos: $${precioSugerido.toLocaleString('es-CO')}`
-                : `Suma de productos: $${precioSugerido.toLocaleString('es-CO')}`
-              }
+        <input value={nombre} onChange={e => setNombre(e.target.value)}
+          placeholder="Ej: Chelada Fresa Mandarina 22oz"
+          className="focus:outline-none" style={ic}
+          onFocus={e => e.target.style.borderColor = 'rgba(244,98,42,0.5)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+      </div>
+
+      {/* ── Precio calculado ── */}
+      {precioTotal > 0 && (
+        <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+          style={{ background: 'rgba(244,98,42,0.06)', border: '1px solid rgba(244,98,42,0.2)' }}>
+          <div>
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Precio total del combo</p>
+            <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
+              Bebidas {fmo,0))}
+              {adiciones.length > 0 && ` + Adiciones ${fmt(adiciones.reduce((s,a)=>s+a.precio,0))}`}
             </p>
-            <button type="button" onClick={() => setPrecio(String(precioSugerido))}
-              className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
-              Usar este precio
-            </button>
           </div>
-        )}
-      </div>
+          <p className="text-xl font-bold" style={{ color: 'var(--primary)' }}>{fmt(precioTotal)}</p>
+        </div>
+      )}
 
-      {msg && <p className="text-xs px-3 py-2 rounded-xl" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>{msg}</p>}
+      {msg && (
+        <p className="text-xs px-3 py-2 rounded-xl"
+          style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>{msg}</p>
+      )}
 
       <button onClick={guardar} disabled={loading}
-        className="w-full py-3 rounded-xl font-bold text-white text-sm disabled:opacity-40"
+        className=3 rounded-xl font-bold text-white text-sm disabled:opacity-40"
         style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
         {loading ? 'Guardando...' : 'Guardar combo'}
       </button>
@@ -208,17 +304,16 @@ function FormCombo({ initial, productos, onSave, onClose }) {
   )
 }
 
+// ── Página principal ──────────────────────────────────────────────────────────
 export default function Combos() {
-  const [combos, setCombos] = useState([])
-  const [productos, setProductos] = useState([])
-  const [busqueda, setBusqueda] = useState('')
-  const [modal, setModal] = useState(null) // 'crear' | 'editar'
+  const [combos, setCombos]       = useState([])
+  const [busqueda, setBusqueda]   = useState('')
+  const [modal, setModal]         = useState(null)
   const [seleccionado, setSeleccionado] = useState(null)
 
   const cargar = async () => {
-    const [c, p] = await Promise.all([api.getCombos(), api.getProductos()])
+    const c = await api.getCombos()
     setCombos(c)
-    setProductos(p)
   }
 
   useEffect(() => { cargar() }, [])
@@ -227,9 +322,9 @@ export default function Combos() {
     c.nombre?.toLowerCase().includes(busqueda.toLowerCase())
   )
 
-  const handleCrear = async (data) => { await api.createCombo(data); await cargar(); setModal(null) }
-  const handleEditar = async (data) => { await api.updateCombo(seleccionado.id || seleccionado._id, data); await cargar(); setModal(null) }
-  const eliminar = async (id) => {
+  const handleCrear  = async (data) => { await api.createCombo(data); await cargar(); setModal(null) }
+  const ) }
+  const eliminar     = async (id)   => {
     if (!confirm('¿Eliminar este combo?')) return
     await api.deleteCombo(id); cargar()
   }
@@ -241,71 +336,21 @@ export default function Combos() {
           <h1 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>Combos</h1>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{combos.length} combos registrados</p>
         </div>
-        <button onClick={() => { setSeleccionado(null); setModal('crear') }}
+   ick={() => { setSeleccionado(null); setModal('crear') }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold"
-          style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
-          <Plus size={15} /> Nuevo combo
-        </button>
-      </div>
+r} onClose={() => setModal(null)} />
+        </Modal>
+      )}
 
-      {/* Buscador */}
-      <div className="relative mb-4">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-dim)' }} />
-        <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar combo..."
-          className="w-full pl-9 pr-4 py-2 rounded-xl text-sm focus:outline-none"
-          style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />
-      </div>
-
-      {/* Grid de combos */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filtrados.map(combo => (
-          <div key={combo.id || combo._id} className="rounded-2xl p-4"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-3xl shrink-0"
-                  style={{ background: 'rgba(244,98,42,0.1)' }}>
-                  {combo.icono || '🎁'}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{combo.nombre}</p>
-                  {combo.descripcion && (
-                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{combo.descripcion}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-1 shrink-0 ml-2">
-                <button onClick={() => { setSeleccionado(combo); setModal('editar') }}
-                  className="p-1.5 rounded-lg" style={{ background: 'var(--bg-raised)', color: 'var(--text-muted)' }}>
-                  <Edit2 size={13} />
-                </button>
-                <button onClick={() => eliminar(combo.id || combo._id)}
-                  className="p-1.5 rounded-lg" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            </div>
-
-            {/* Items del combo */}
-            <div className="space-y-1 mb-3">
-              {(combo.items || []).map((item, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{item.cantidad}×</span> {item.nombre}
-                  </span>
-                  <span style={{ color: 'var(--text-dim)' }}>${Number(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Precio */}
-            <div className="flex items-center justify-between pt-2"
-              style={{ borderTop: '1px dashed var(--border)' }}>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                <Package size={11} className="inline mr-1" />{(combo.items || []).reduce((s, i) => s + i.cantidad, 0)} productos
-              </span>
-              <span className="text-base font-bold" style={{ color: 'var(--primary)' }}>
-                ${Number(combo.precio).toLocaleString('es-CO')}
+      {modal === 'editar' && seleccionado && (
+        <Modal title={`Editar — ${seleccionado.nombre}`} onClose={() => setModal(null)}>
+          <FormCombo initial={seleccionado} onSave={handleEditar} onClose={() => setModal(null)} />
+        </Modal>
+      )}
+    </div>
+  )
+}
+mbo.precio || 0)}
               </span>
             </div>
           </div>
@@ -321,20 +366,83 @@ export default function Combos() {
 
       {modal === 'crear' && (
         <Modal title="Nuevo combo" onClose={() => setModal(null)}>
-          <FormCombo productos={productos} onSave={handleCrear} onClose={() => setModal(null)} />
-        </Modal>
-      )}
+          <FormCombo onSave={handleCrea        </span>
+              )}
+            </div>
 
-      {modal === 'editar' && seleccionado && (
-        <Modal title={`Editar — ${seleccionado.nombre}`} onClose={() => setModal(null)}>
-          <FormCombo
-            initial={seleccionado}
-            productos={productos}
-            onSave={handleEditar}
-            onClose={() => setModal(null)}
-          />
-        </Modal>
-      )}
-    </div>
-  )
-}
+            <div className="flex items-center justify-between pt-2"
+              style={{ borderTop: '1px dashed var(--border)' }}>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <Package size={11} className="inline mr-1" />
+                {(combo.items || []).length} items
+              </span>
+              <span className="text-base font-bold" style={{ color: 'var(--primary)' }}>
+                {fmt(coey={i} className="px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: 'rgba(22,163,74,0.08)', color: '#16a34a' }}>
+                      + {a.nombre}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {combo.borde && (
+                <span className="inline-block px-2 py-0.5 rounded-full font-medium"
+                  style={{ background: 'rgba(124,58,237,0.08)', color: '#7c3aed' }}>
+                  Borde: {combo.borde}
+        as.map((b,i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: 'rgba(37,99,235,0.08)', color: '#2563eb' }}>
+                      🥤 {b.nombre.split('·')[0].trim()}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {combo.adiciones?.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {combo.adiciones.map((a,i) => (
+                    <span k          <button onClick={() => eliminar(combo.id || combo._id)}
+                  className="p-1.5 rounded-lg" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Detalle por categoría */}
+            <div className="space-y-1.5 mb-3 text-xs">
+              {combo.bebidas?.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {combo.bebidr && (
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>🍓 {combo.sabor}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0 ml-2">
+                <button onClick={() => { setSeleccionado(combo); setModal('editar') }}
+                  className="p-1.5 rounded-lg" style={{ background: 'var(--bg-raised)', color: 'var(--text-muted)' }}>
+                  <Edit2 size={13} />
+                </button>
+      -start justify-between mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-3xl shrink-0"
+                  style={{ background: 'rgba(244,98,42,0.1)' }}>
+                  {combo.icono || '🍹'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{combo.nombre}</p>
+                  {combo.sabo"w-full pl-4 pr-4 py-2 rounded-xl text-sm focus:outline-none"
+          style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />
+      </div>
+
+      {/* Grid */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {filtrados.map(combo => (
+          <div key={combo.id || combo._id} className="rounded-2xl p-4"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="flex items          style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
+          <Plus size={15} /> Nuevo combo
+        </button>
+      </div>
+
+      {/* Buscador */}
+      <div className="relative mb-4">
+        <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar combo..."
+          className=
