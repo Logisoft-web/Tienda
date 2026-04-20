@@ -64,7 +64,8 @@ export default function Ventas() {
       const existe = prev.find(i => i.es_combo && i.combo_id === combo.id)
       if (existe) return prev.map(i => i.es_combo && i.combo_id === combo.id ? { ...i, cantidad: i.cantidad + 1 } : i)
       return [...prev, { _key: Date.now(), combo_id: combo.id, nombre: combo.nombre,
-        precio_unitario: combo.precio || 0, cantidad: 1, es_combo: true, es_chelada: false, imagen: combo.imagen || null }]
+        precio_unitario: combo.precio || 0, cantidad: 1, es_combo: true, es_chelada: false,
+        imagen: combo.imagen || null, icono: combo.icono || '🎁' }]
     })
   }
 
@@ -424,7 +425,10 @@ export default function Ventas() {
                 <div className="border-t border-dashed border-gray-300 pt-2 pb-2">
                   {ticketData.items.map((item, idx) => (
                     <div key={idx} className="mb-1.5 flex justify-between">
-                      <span className="font-semibold">{item.cantidad > 1 ? `${item.cantidad}× ` : ''}{item.nombre}</span>
+                      <span className="font-semibold">
+                        {item.icono && <span className="mr-1">{item.icono}</span>}
+                        {item.cantidad > 1 ? `${item.cantidad}× ` : ''}{item.nombre}
+                      </span>
                       <span>${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
