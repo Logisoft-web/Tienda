@@ -69,6 +69,7 @@ function FormCombo({ initial, productos, onSave, onClose }) {
     if (!nombre.trim()) { setMsg('Nombre requerido'); return }
     if (!items.length) { setMsg('Agrega al menos un producto'); return }
     if (!precio || +precio <= 0) { setMsg('Precio requerido'); return }
+    if (+precio < precioSugerido) { setMsg(`El precio del combo ($${(+precio).toLocaleString('es-CO')}) no puede ser menor a la suma de los productos ($${precioSugerido.toLocaleString('es-CO')})`); return }
     setLoading(true)
     try {
       await onSave({ nombre: nombre.trim(), descripcion, precio: +precio, items, icono })
@@ -177,13 +178,16 @@ function FormCombo({ initial, productos, onSave, onClose }) {
           Precio del combo <span style={{ color: 'var(--danger)' }}>*</span>
         </label>
         <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} placeholder="0"
-          className="focus:outline-none" style={ic}
-          onFocus={e => e.target.style.borderColor = 'rgba(244,98,42,0.5)'}
-          onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          className="focus:outline-none" style={{ ...ic, borderColor: precioSugerido > 0 && +precio < precioSugerido ? 'var(--danger)' : 'var(--border)' }}
+          onFocus={e => e.target.style.borderColor = precioSugerido > 0 && +precio < precioSugerido ? 'var(--danger)' : 'rgba(244,98,42,0.5)'}
+          onBlur={e => e.target.style.borderColor = precioSugerido > 0 && +precio < precioSugerido ? 'var(--danger)' : 'var(--border)'} />
         {precioSugerido > 0 && (
           <div className="flex items-center justify-between mt-1">
-            <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
-              Suma de productos: <strong>${precioSugerido.toLocaleString('es-CO')}</strong>
+            <p className="text-xs" style={{ color: +precio < precioSugerido ? 'var(--danger)' : 'var(--text-dim)' }}>
+              {+precio < precioSugerido
+                ? `⚠️ Precio menor a la suma de productos: $${precioSugerido.toLocaleString('es-CO')}`
+                : `Suma de productos: $${precioSugerido.toLocaleString('es-CO')}`
+              }
             </p>
             <button type="button" onClick={() => setPrecio(String(precioSugerido))}
               className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
