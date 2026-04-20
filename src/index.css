@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;500;600;700;800&family=Figtree:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,8 +22,8 @@
   --text-dim:       #B89A88;
 
   /* Bordes */
-  --border:       rgba(244, 98, 42, 0.15);
-  --border-hover: rgba(244, 98, 42, 0.35);
+  --border:       rgba(244, 98, 42, 0.12);
+  --border-hover: rgba(244, 98, 42, 0.30);
 
   /* Semánticos */
   --success:        #16a34a;
@@ -38,53 +38,78 @@
   --info:           #2563eb;
   --info-bg:        #eff6ff;
   --info-border:    #bfdbfe;
+
+  /* Radios */
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  20px;
+  --radius-2xl: 24px;
+
+  /* Sombras */
+  --shadow-sm: 0 1px 3px rgba(28,16,8,0.06), 0 1px 2px rgba(28,16,8,0.04);
+  --shadow-md: 0 4px 12px rgba(28,16,8,0.08), 0 2px 4px rgba(28,16,8,0.04);
+  --shadow-lg: 0 8px 24px rgba(28,16,8,0.10), 0 4px 8px rgba(28,16,8,0.06);
 }
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Figtree', 'Nunito', sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   margin: 0;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-raised); }
-::-webkit-scrollbar-thumb { background: rgba(244,98,42,0.3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(244,98,42,0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(244,98,42,0.4); }
 
 /* Animaciones */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.fade-in { animation: fadeIn 0.2s ease; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.fade-in  { animation: fadeIn  0.2s cubic-bezier(0.16,1,0.3,1); }
+.slide-up { animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1); }
+.scale-in { animation: scaleIn 0.2s cubic-bezier(0.16,1,0.3,1); }
 
 /* Superficies */
 .surface {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 .surface-raised {
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
 }
 
-/* Input claro */
+/* Input */
 .input-dark {
   background: var(--bg-raised);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   color: var(--text-primary);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-family: 'Nunito', sans-serif;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-family: 'Figtree', sans-serif;
   font-size: 14px;
   transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
@@ -93,13 +118,34 @@ body {
 .input-dark:focus {
   outline: none;
   border-color: rgba(244, 98, 42, 0.5);
-  box-shadow: 0 0 0 3px rgba(244, 98, 42, 0.1);
+  box-shadow: 0 0 0 3px rgba(244, 98, 42, 0.08);
+}
+
+/* Botón táctil — mínimo 44px para touch targets */
+.btn-touch {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-.btn-glow { box-shadow: 0 4px 20px rgba(244, 98, 42, 0.3); }
+.btn-glow { box-shadow: 0 4px 20px rgba(244, 98, 42, 0.28); }
+
+/* Active press feedback */
+.press-feedback {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.press-feedback:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
 
 @media print {
   body * { visibility: hidden; }
@@ -107,12 +153,12 @@ body {
   #factura-print {
     position: fixed;
     top: 0; left: 0;
-    width: 80mm;
-    padding: 4px 8px;
+    width: 72mm;
+    padding: 6px 10px;
     font-size: 10px;
     font-family: 'Courier New', monospace;
     background: white;
     color: black;
   }
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: 80mm auto; margin: 4mm 4mm 4mm 4mm; }
 }
