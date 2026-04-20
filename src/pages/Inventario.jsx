@@ -7,13 +7,6 @@ const TIPOS = [
   { value: 'producto', label: 'Producto', emoji: '📦', color: '#7c3aed' },
 ]
 
-// Emojis disponibles para productos (frutas, bebidas, ingredientes)
-const EMOJIS_PRODUCTO = [
-  '🍓','🍉','🥭','🍍','🍋','🍊','🍇','🍒','🍑','🥝',
-  '🫐','🍏','🥥','🌽','🥒','🌿','🧃','🥤','🍹','🍺',
-  '🧊','🧂','🍬','✨','🌟','💥','🎯','📦','🧴','🫙',
-]
-
 const UNIDADES = [
   { value: 'unidad',     label: 'Unidad (und)' },
   { value: 'gramo',      label: 'Gramo (g)' },
@@ -139,22 +132,6 @@ function FormProducto({ initial, onSave, onClose }) {
 
   return (
     <>
-      {/* Emoji */}
-      <div>
-        <label className="block text-xs font-medium mb-2" style={{ color:'var(--text-muted)' }}>Icono</label>
-        <div className="flex flex-wrap gap-2">
-          {EMOJIS_PRODUCTO.map(em => (
-            <button key={em} type="button" onClick={() => set('emoji', em)}
-              className="w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all"
-              style={{
-                background: form.emoji === em ? 'var(--primary)' : 'var(--bg-raised)',
-                border: `2px solid ${form.emoji === em ? 'var(--primary)' : 'var(--border)'}`,
-                transform: form.emoji === em ? 'scale(1.15)' : 'scale(1)'
-              }}>{em}</button>
-          ))}
-        </div>
-      </div>
-
       {/* Nombre */}
       <Field label="Nombre" required>
         <InputField value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej: Fresa, Canada Dry 22oz, Vaso..." />
