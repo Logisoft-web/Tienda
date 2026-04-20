@@ -91,6 +91,8 @@ export default function Ventas() {
     if (metodo === 'efectivo' && cambio > 0 && cambio > (cajaActual?.efectivo_disponible || 0)) {
       setError(`Saldo en caja insuficiente para dar cambio de $${cambio.toLocaleString('es-CO')}. Saldo disponible: $${(cajaActual?.efectivo_disponible||0).toLocaleString('es-CO')}`); return
     }
+    const tieneCombo = carrito.some(i => i.es_combo)
+    if (tieneCombo && !nombreCliente.trim()) { setError('El nombre del cliente es obligatorio para pedidos con combo'); return }
     setError(''); setProcesando(true)
     try {
       const result = await api.createVenta({
@@ -348,11 +350,18 @@ export default function Ventas() {
           )}
 
           <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
-            <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>👤 Cliente</p>
-            <input type="text" placeholder="Nombre del cliente" value={nombreCliente}
+            <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>
+              👤 Cliente {carrito.some(i => i.es_combo) && <span style={{ color:'var(--danger)' }}>*</span>}
+            </p>
+            <input type="text" placeholder={carrito.some(i => i.es_combo) ? 'Nombre del cliente (requerido)' : 'Nombre del cliente'}
+              value={nombreCliente}
               onChange={e => setNombreCliente(e.target.value)}
               className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
-              style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
+              style={{
+                background:'var(--bg-raised)',
+                border: `1px solid ${carrito.some(i => i.es_combo) && !nombreCliente.trim() ? 'var(--danger)' : 'var(--border)'}`,
+                color:'var(--text-primary)'
+              }}/>
             <input type="text" placeholder="Documento (opcional)" value={docCliente}
               onChange={e => setDocCliente(e.target.value)}
               className="w-full px-3 py-2 rounded-xl text-xs focus:outline-none"
