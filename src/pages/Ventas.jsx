@@ -1,8 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
-import { ShoppingCart, CreditCard, Banknote, Smartphone, CheckCircle, X, Minus, Plus, Trash2, AlertTriangle } from 'lucide-react'
-import CheladaConfigurator from '../components/CheladaConfigurator'
+import { ShoppingCart, CreditCard, Banknote, Smartphone, CheckCircle, X, Minus, Plus, Trash2, AlertTriangle, Search } from 'lucide-react'
 
 const METODOS = [
   { id: 'efectivo',      label: 'Efectivo',      icon: Banknote },
@@ -14,24 +13,26 @@ const MENSAJES = [
   '¡Gracias por tu preferencia! 🍺',
   '¡Que la disfrutes mucho! 🎉',
   '¡Vuelve pronto, te esperamos! ✨',
-  '¡La chelada perfecta para ti! 🍋',
+  '¡La mejor elección del día! 🌟',
 ]
 
 export default function Ventas() {
-  const [carrito, setCarrito] = useState([])
-  const [metodo, setMetodo] = useState('efectivo')
+  const [carrito, setCarrito]             = useState([])
+  const [metodo, setMetodo]               = useState('efectivo')
   const [montoRecibido, setMontoRecibido] = useState('')
-  const [descuento, setDescuento] = useState(0)
-  const [notas, setNotas] = useState('')
+  const [descuento, setDescuento]         = useState(0)
+  const [notas, setNotas]                 = useState('')
   const [nombreCliente, setNombreCliente] = useState('')
-  const [docCliente, setDocCliente] = useState('')
-  const [procesando, setProcesando] = useState(false)
-  const [ticketData, setTicketData] = useState(null)
-  const [config, setConfig] = useState({})
-  const [cajaActual, setCajaActual] = useState(null)
-  const [error, setError] = useState('')
-  const [showConfigurador, setShowConfigurador] = useState(true)
-  const [inventario, setInventario] = useState([])
+  const [docCliente, setDocCliente]       = useState('')
+  const [procesando, setProcesando]       = useState(false)
+  const [ticketData, setTicketData]       = useState(null)
+  const [config, setConfig]               = useState({})
+  const [cajaActual, setCajaActual]       = useState(null)
+  const [error, setError]                 = useState('')
+  const [inventario, setInventario]       = useState([])
+  const [combos, setCombos]               = useState([])
+  const [tab, setTab]                     = useState('combos')
+  const [busqueda, setBusqueda]           = useState('')
 
   const navigate = useNavigate()
 
@@ -39,11 +40,32 @@ export default function Ventas() {
     api.getConfig().then(setConfig).catch(() => {})
     api.getCajaEstado().then(setCajaActual).catch(() => {})
     api.getProductos().then(setInventario).catch(() => {})
+    api.getCombos().then(setCombos).catch(() => {})
   }, [])
 
-  const agregarChelada = (item) => {
-    setCarrito(prev => [...prev, { ...item, _key: Date.now() }])
-    setShowConfigurador(false)
+  const recargar = () => {
+    api.getProductos().then(setInventario).catch(() => {})
+    api.getCombos().then(setCombos).catch(() => {})
+    api.getCajaEstado().then(setCajaActual).catch(() => {})
+  }
+
+  const agregarProducto = (prod) => {
+    setCarrito(prev => {
+      const existe = prev.find(i => !i.es_combo && i.producto_id === prod.id)
+      if (existe) return prev.map(i => i.producto_id === prod.id && !i.es_combo ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { _key: Date.now(), producto_id: prod.id, nombre: prod.nombre,
+        precio_unitario: prod.precio || 0, costo_unitario: prod.costo || 0,
+        cantidad: 1, es_combo: false, es_chelada: false, imagen: prod.imagen || null }]
+    })
+  }
+
+  const agregarCombo = (combo) => {
+    setCarrito(prev => {
+      const existe = prev.find(i => i.es_combo && i.combo_id === combo.id)
+      if (existe) return prev.map(i => i.es_combo && i.combo_id === combo.id ? { ...i, cantidad: i.cantidad + 1 } : i)
+      return [...prev, { _key: Date.now(), combo_id: combo.id, nombre: combo.nombre,
+        precio_unitario: combo.precio || 0, cantidad: 1, es_combo: true, es_chelada: false, imagen: combo.imagen || null }]
+    })
   }
 
   const cambiarCantidad = (key, delta) => {
@@ -59,8 +81,8 @@ export default function Ventas() {
   const limpiar = () => { setCarrito([]); setDescuento(0); setNotas(''); setMontoRecibido(''); setError(''); setNombreCliente(''); setDocCliente('') }
 
   const subtotal = carrito.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
-  const total = subtotal - descuento
-  const cambio = metodo === 'efectivo' && montoRecibido ? parseFloat(montoRecibido) - total : 0
+  const total    = subtotal - descuento
+  const cambio   = metodo === 'efectivo' && montoRecibido ? parseFloat(montoRecibido) - total : 0
 
   const procesarVenta = async () => {
     if (!carrito.length) return
@@ -69,37 +91,32 @@ export default function Ventas() {
     try {
       const result = await api.createVenta({
         items: carrito.map(({ _key, ...rest }) => rest),
-        metodo_pago: metodo,
-        monto_recibido: parseFloat(montoRecibido||total),
+        metodo_pago: metodo, monto_recibido: parseFloat(montoRecibido||total),
         descuento, notas,
         nombre_cliente: nombreCliente.trim() || null,
         doc_cliente: docCliente.trim() || null,
       })
       setTicketData({ ...result, items: carrito, metodo, descuento, subtotal, total, cambio,
-        nombre_cliente: nombreCliente.trim() || null,
-        doc_cliente: docCliente.trim() || null,
-        iva_pct: config.iva || 0,
-        iva_monto: config.iva ? Math.round(total * config.iva / 100) : 0,
+        nombre_cliente: nombreCliente.trim() || null, doc_cliente: docCliente.trim() || null,
+        iva_pct: config.iva || 0, iva_monto: config.iva ? Math.round(total * config.iva / 100) : 0,
         mensaje: MENSAJES[Math.floor(Math.random() * MENSAJES.length)] })
-      limpiar()
-      api.getCajaEstado().then(setCajaActual).catch(() => {})
-      api.getProductos().then(setInventario).catch(() => {})
+      limpiar(); recargar()
     } catch(err) { setError(err.message) }
     finally { setProcesando(false) }
   }
 
+  const prodsFiltrados  = inventario.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  const combosFiltrados = combos.filter(c => c.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
+
   return (
     <div className="flex h-full flex-col md:flex-row" style={{ background:'var(--bg-base)' }}>
 
-      {/* ── Caja cerrada — bloqueo total ── */}
       {!cajaActual && (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
           <div className="text-6xl">🔒</div>
           <div>
             <p className="font-bold text-xl" style={{ color:'var(--text-primary)' }}>Caja cerrada</p>
-            <p className="text-sm mt-1" style={{ color:'var(--text-muted)' }}>
-              Debes abrir la caja antes de realizar ventas
-            </p>
+            <p className="text-sm mt-1" style={{ color:'var(--text-muted)' }}>Debes abrir la caja antes de realizar ventas</p>
           </div>
           <button onClick={() => navigate('/caja')}
             className="px-6 py-3 rounded-xl font-bold text-white text-sm"
@@ -109,83 +126,118 @@ export default function Ventas() {
         </div>
       )}
 
-      {/* ── Contenido normal solo si caja abierta ── */}
       {cajaActual && (<>
 
-      {/* ── Panel izquierdo: acción principal ── */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
-        {carrito.length === 0 ? (
-          <div className="text-center space-y-4">
-            <div className="text-7xl">🍺</div>
-            <div>
-              <p className="font-bold text-xl" style={{ color:'var(--text-primary)' }}>¿Qué va a llevar?</p>
-              <p className="text-sm mt-1" style={{ color:'var(--text-muted)' }}>Arma la chelada perfecta para tu cliente</p>
-            </div>
-            <button onClick={() => setShowConfigurador(true)}
-              className="flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-white text-lg transition-all active:scale-95"
-              style={{ background:'linear-gradient(135deg, var(--primary), var(--secondary))', boxShadow:'0 8px 24px rgba(244,98,42,0.35)' }}>
-              🍺 Armar Chelada
-            </button>
+      {/* ── Panel izquierdo: catálogo ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Búsqueda + tabs */}
+        <div className="p-3 space-y-2 shrink-0" style={{ borderBottom:'1px solid var(--border)' }}>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color:'var(--text-dim)' }}/>
+            <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar producto o combo..."
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm focus:outline-none"
+              style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
           </div>
-        ) : (
-          <div className="w-full max-w-md space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="font-bold text-base" style={{ color:'var(--text-primary)' }}>
-                Pedido ({carrito.reduce((s,i) => s+i.cantidad, 0)} chelada{carrito.reduce((s,i)=>s+i.cantidad,0)!==1?'s':''})
-              </p>
-              <button onClick={() => setShowConfigurador(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-white text-sm"
-                style={{ background:'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
-                + Agregar
+          <div className="flex gap-2">
+            {[
+              { id:'combos',    label:'Combos',    emoji:'🎁' },
+              { id:'productos', label:'Productos', emoji:'🛒' },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5"
+                style={{
+                  background: tab === t.id ? 'linear-gradient(135deg, var(--primary), var(--secondary))' : 'var(--bg-raised)',
+                  color: tab === t.id ? '#fff' : 'var(--text-muted)',
+                  border: `2px solid ${tab === t.id ? 'transparent' : 'var(--border)'}`,
+                  boxShadow: tab === t.id ? '0 4px 12px rgba(244,98,42,0.25)' : 'none',
+                }}>
+                <span className="text-base">{t.emoji}</span> {t.label}
+                {t.id === 'combos' && combos.length > 0 && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full font-bold"
+                    style={{ background: tab === t.id ? 'rgba(255,255,255,0.25)' : 'rgba(244,98,42,0.12)', color: tab === t.id ? '#fff' : 'var(--primary)' }}>
+                    {combos.length}
+                  </span>
+                )}
               </button>
-            </div>
-            {carrito.map(item => (
-              <div key={item._key} className="rounded-2xl p-3 flex items-start gap-3"
-                style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
-                <span className="text-2xl shrink-0 mt-0.5">{item.detalle?.sabor?.emoji || '🍺'}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color:'var(--text-primary)' }}>
-                    Chelada {item.detalle?.sabor?.nombre}
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color:'var(--text-muted)' }}>
-                    {item.detalle?.bebida?.nombre} {item.detalle?.bebida?.oz}
-                    {item.detalle?.adiciones?.length > 0 && ` · ${item.detalle.adiciones.map(a=>a.nombre).join(', ')}`}
-                    {item.detalle?.borde && ` · ${item.detalle.borde.nombre}`}
-                  </p>
-                  <p className="text-sm font-bold mt-1" style={{ color:'var(--primary)' }}>
-                    ${item.precio_unitario.toLocaleString('es-CO')}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => cambiarCantidad(item._key, -1)}
-                    className="w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ background:'var(--bg-raised)' }}>
-                    <Minus size={12}/>
-                  </button>
-                  <span className="w-6 text-center text-sm font-bold" style={{ color:'var(--text-primary)' }}>{item.cantidad}</span>
-                  <button onClick={() => cambiarCantidad(item._key, 1)}
-                    className="w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ background:'var(--bg-raised)' }}>
-                    <Plus size={12}/>
-                  </button>
-                  <button onClick={() => quitarItem(item._key)} className="ml-1" style={{ color:'var(--text-dim)' }}>
-                    <X size={14}/>
-                  </button>
-                </div>
-              </div>
             ))}
           </div>
-        )}
+        </div>
+
+        {/* Grid */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {tab === 'combos' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {combosFiltrados.map(c => (
+                <button key={c.id} onClick={() => agregarCombo(c)}
+                  className="rounded-2xl text-left transition-all active:scale-95 overflow-hidden"
+                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <div className="w-full h-28 flex items-center justify-center text-5xl"
+                    style={{ background:'linear-gradient(135deg, rgba(244,98,42,0.09), rgba(244,98,42,0.03))' }}>
+                    {c.icono || '🎁'}
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-bold leading-tight truncate" style={{ color:'var(--text-primary)' }}>{c.nombre}</p>
+                    <p className="text-base font-bold mt-1" style={{ color:'var(--primary)' }}>
+                      ${Number(c.precio||0).toLocaleString('es-CO')}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color:'var(--text-dim)' }}>
+                      {(c.items||[]).reduce((s,i)=>s+i.cantidad,0)} productos
+                    </p>
+                  </div>
+                </button>
+              ))}
+              {combosFiltrados.length === 0 && (
+                <div className="col-span-3 text-center py-16" style={{ color:'var(--text-dim)' }}>
+                  <p className="text-4xl mb-2">🎁</p><p className="text-sm">Sin combos creados</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'productos' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {prodsFiltrados.map(p => {
+                const sinStock = p.stock <= 0
+                return (
+                  <button key={p.id} onClick={() => !sinStock && agregarProducto(p)} disabled={sinStock}
+                    className="rounded-2xl text-left transition-all active:scale-95 disabled:opacity-40 overflow-hidden"
+                    style={{ background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+                    {p.imagen
+                      ? <img src={p.imagen} alt={p.nombre} className="w-full h-28 object-cover"/>
+                      : <div className="w-full h-28 flex items-center justify-center text-5xl"
+                          style={{ background:'rgba(244,98,42,0.07)' }}>
+                          {p.emoji || '🛒'}
+                        </div>
+                    }
+                    <div className="p-3">
+                      <p className="text-sm font-bold leading-tight" style={{ color:'var(--text-primary)' }}>{p.nombre}</p>
+                      <p className="text-base font-bold mt-1" style={{ color: sinStock ? 'var(--danger)' : 'var(--primary)' }}>
+                        {sinStock ? 'Sin stock' : `$${Number(p.precio||0).toLocaleString('es-CO')}`}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+              {prodsFiltrados.length === 0 && (
+                <div className="col-span-3 text-center py-16" style={{ color:'var(--text-dim)' }}>
+                  <p className="text-4xl mb-2">📦</p><p className="text-sm">Sin productos</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Panel derecho: cobro ── */}
+      {/* ── Panel derecho: carrito + cobro ── */}
       <div className="w-full md:w-96 flex flex-col shrink-0"
         style={{ background:'var(--bg-card)', borderLeft:'1px solid var(--border)', borderTop:'1px solid var(--border)' }}>
 
         <div className="px-4 py-3 flex items-center justify-between shrink-0"
           style={{ borderBottom:'1px solid var(--border)' }}>
           <h2 className="font-bold text-base flex items-center gap-2" style={{ color:'var(--text-primary)' }}>
-            <ShoppingCart size={17} style={{ color:'var(--primary)' }}/> Cobro
+            <ShoppingCart size={17} style={{ color:'var(--primary)' }}/>
+            Pedido {carrito.length > 0 && <span className="text-xs font-normal" style={{ color:'var(--text-muted)' }}>({carrito.reduce((s,i)=>s+i.cantidad,0)} items)</span>}
           </h2>
           {carrito.length > 0 && (
             <button onClick={limpiar} className="text-xs flex items-center gap-1" style={{ color:'var(--danger)' }}>
@@ -194,8 +246,47 @@ export default function Ventas() {
           )}
         </div>
 
-        <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-          {/* Descuento */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {carrito.length === 0 ? (
+            <div className="text-center py-10" style={{ color:'var(--text-dim)' }}>
+              <p className="text-4xl mb-2">🛒</p>
+              <p className="text-sm">Selecciona productos del catálogo</p>
+            </div>
+          ) : carrito.map(item => (
+            <div key={item._key} className="rounded-xl p-2.5 flex items-center gap-2"
+              style={{ background:'var(--bg-raised)', border:'1px solid var(--border)' }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xl shrink-0"
+                style={{ background:'rgba(244,98,42,0.1)' }}>
+                {item.es_combo ? (combos.find(c=>c.id===item.combo_id)?.icono||'🎁') : (inventario.find(p=>p.id===item.producto_id)?.emoji||'🛒')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold truncate" style={{ color:'var(--text-primary)' }}>{item.nombre}</p>
+                <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>
+                  ${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => cambiarCantidad(item._key, -1)}
+                  className="w-6 h-6 rounded-full flex items-center justify-center"
+                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                  <Minus size={10}/>
+                </button>
+                <span className="w-5 text-center text-xs font-bold" style={{ color:'var(--text-primary)' }}>{item.cantidad}</span>
+                <button onClick={() => cambiarCantidad(item._key, 1)}
+                  className="w-6 h-6 rounded-full flex items-center justify-center"
+                  style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
+                  <Plus size={10}/>
+                </button>
+                <button onClick={() => quitarItem(item._key)} className="ml-1" style={{ color:'var(--text-dim)' }}>
+                  <X size={13}/>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Cobro */}
+        <div className="p-3 space-y-3 shrink-0" style={{ borderTop:'1px solid var(--border)' }}>
           <div className="flex items-center gap-2">
             <label className="text-xs w-24 shrink-0" style={{ color:'var(--text-muted)' }}>Descuento $</label>
             <input type="number" min="0" max={subtotal} value={descuento}
@@ -204,8 +295,7 @@ export default function Ventas() {
               style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
           </div>
 
-          {/* Totales */}
-          <div className="rounded-xl p-3 space-y-1.5" style={{ background:'var(--bg-raised)' }}>
+          <div className="rounded-xl p-3 space-y-1" style={{ background:'var(--bg-raised)' }}>
             <div className="flex justify-between text-sm" style={{ color:'var(--text-muted)' }}>
               <span>Subtotal</span><span>${subtotal.toLocaleString('es-CO')}</span>
             </div>
@@ -214,14 +304,13 @@ export default function Ventas() {
                 <span>Descuento</span><span>-${descuento.toLocaleString('es-CO')}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold text-lg pt-1.5"
+            <div className="flex justify-between font-bold text-lg pt-1"
               style={{ borderTop:'1px solid var(--border)', color:'var(--text-primary)' }}>
               <span>Total</span>
               <span style={{ color:'var(--primary)' }}>${total.toLocaleString('es-CO')}</span>
             </div>
           </div>
 
-          {/* Método de pago */}
           <div className="grid grid-cols-3 gap-1.5">
             {METODOS.map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setMetodo(id)}
@@ -236,7 +325,6 @@ export default function Ventas() {
             ))}
           </div>
 
-          {/* Monto recibido */}
           {metodo === 'efectivo' && (
             <div>
               <input type="number" placeholder="Monto recibido" value={montoRecibido}
@@ -252,12 +340,11 @@ export default function Ventas() {
             </div>
           )}
 
-          {/* Nombre y documento del cliente */}
           <div className="rounded-xl p-3 space-y-2" style={{ background:'rgba(244,98,42,0.05)', border:'1px solid var(--border)' }}>
             <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>👤 Cliente</p>
-            <input type="text" placeholder="Nombre del cliente *" value={nombreCliente}
+            <input type="text" placeholder="Nombre del cliente" value={nombreCliente}
               onChange={e => setNombreCliente(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none font-semibold"
+              className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
               style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)' }}/>
             <input type="text" placeholder="Documento (opcional)" value={docCliente}
               onChange={e => setDocCliente(e.target.value)}
@@ -283,22 +370,14 @@ export default function Ventas() {
               background: carrito.length ? 'linear-gradient(135deg, var(--primary), var(--secondary))' : 'var(--bg-raised)',
               boxShadow: carrito.length && !procesando ? '0 4px 20px rgba(244,98,42,0.3)' : 'none'
             }}>
-            {procesando ? '⏳ Procesando...' : carrito.length ? `✓ Cobrar $${total.toLocaleString('es-CO')}` : 'Arma una chelada primero'}
+            {procesando ? '⏳ Procesando...' : carrito.length ? `✓ Cobrar $${total.toLocaleString('es-CO')}` : 'Selecciona productos'}
           </button>
         </div>
       </div>
 
-      {/* ── Configurador ── */}
-      {showConfigurador && (
-        <CheladaConfigurator
-          inventario={inventario}
-          onAgregar={agregarChelada}
-          onCerrar={() => setShowConfigurador(false)}
-        />
-      )}
-
       {/* ── Ticket ── */}
-      {ticketData && (        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {ticketData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[92vh]"
             style={{ background:'var(--bg-card)', border:'1px solid var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-3 shrink-0"
@@ -311,7 +390,7 @@ export default function Ventas() {
             </div>
 
             <div className="overflow-y-auto">
-              <div className="px-5 py-4 font-mono text-xs space-y-0" style={{ color:'#1a1a1a', background:'#fff' }}>
+              <div id="factura-print" className="px-5 py-4 font-mono text-xs space-y-0" style={{ color:'#1a1a1a', background:'#fff' }}>
                 <div className="text-center mb-3">
                   {config?.logo && <img src={config.logo} alt="logo" className="h-10 mx-auto mb-1 object-contain"/>}
                   <p className="font-bold text-sm uppercase tracking-wide">{config?.nombre||'ENJOY CHELADAS'}</p>
@@ -338,24 +417,16 @@ export default function Ventas() {
                 </div>
                 <div className="border-t border-dashed border-gray-300 pt-2 pb-2">
                   {ticketData.items.map((item, idx) => (
-                    <div key={idx} className="mb-2">
-                      <div className="flex justify-between font-semibold">
-                        <span>{item.detalle?.sabor?.emoji} Chelada {item.detalle?.sabor?.nombre}{item.cantidad>1?` x${item.cantidad}`:''}</span>
-                        <span>${(item.precio_unitario*item.cantidad).toLocaleString('es-CO')}</span>
-                      </div>
-                      <div className="pl-3 text-gray-500 space-y-0.5 mt-0.5">
-                        <p>{item.detalle?.bebida?.emoji} {item.detalle?.bebida?.nombre} {item.detalle?.bebida?.oz}</p>
-                        {item.detalle?.adiciones?.map(a => <p key={a.id}>+ {a.emoji} {a.nombre} — ${a.precio.toLocaleString('es-CO')}</p>)}
-                        {item.detalle?.borde && <p>Borde: {item.detalle.borde.emoji} {item.detalle.borde.nombre}</p>}
-                      </div>
+                    <div key={idx} className="mb-1.5 flex justify-between">
+                      <span className="font-semibold">{item.cantidad > 1 ? `${item.cantidad}× ` : ''}{item.nombre}</span>
+                      <span>${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
                 <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
-                  {/* Base gravable = total - IVA incluido */}
                   {ticketData.iva_pct > 0 ? (
                     <>
-                      <div className="flex justify-between"><span className="text-gray-500">Subtotal (base)</span><span>${(ticketData.total - ticketData.iva_monto).toLocaleString('es-CO')}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${(ticketData.total - ticketData.iva_monto).toLocaleString('es-CO')}</span></div>
                       {ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
                       <div className="flex justify-between text-gray-500"><span>IVA {ticketData.iva_pct}%</span><span>${ticketData.iva_monto.toLocaleString('es-CO')}</span></div>
                     </>
@@ -398,7 +469,7 @@ export default function Ventas() {
                 style={{ background:'var(--bg-raised)', color:'var(--text-muted)', border:'1px solid var(--border)' }}>
                 🖨️ Imprimir
               </button>
-              <button onClick={() => { setTicketData(null); setShowConfigurador(true) }}
+              <button onClick={() => setTicketData(null)}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
                 style={{ background:'linear-gradient(135deg, var(--primary), var(--secondary))' }}>
                 Nueva venta
