@@ -183,7 +183,7 @@ app.get('/api/productos', auth, async (req, res) => {
 })
 
 app.post('/api/productos', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas, bordes_enlazados } = req.body
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas, bordes_enlazados, emoji } = req.body
   if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
   // precio de venta se define en el configurador de ventas, no es requerido en inventario
   const doc = await db.productos.insert({
@@ -207,13 +207,14 @@ app.post('/api/productos', auth, adminOnly, async (req, res) => {
     bebidas_enlazadas: bebidas_enlazadas||[],
     adiciones_enlazadas: adiciones_enlazadas||[],
     bordes_enlazados: bordes_enlazados||[],
+    emoji: emoji||'📦',
     activo: true,
     creado_en: now()
   })
   res.json({ id: doc._id })
 })
 app.put('/api/productos/:id', auth, adminOnly, async (req, res) => {
-  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas, bordes_enlazados } = req.body
+  const { nombre, categoria, precio, costo, stock, stock_minimo, unidad, activo, codigo, codigo_barras, proveedor, iva_pct, descripcion, imagen, tipo, porcion_venta, fecha_vencimiento, sabores_enlazados, bebidas_enlazadas, adiciones_enlazadas, bordes_enlazados, emoji } = req.body
   await db.productos.update({ _id: req.params.id }, { $set: {
     nombre, categoria, precio: +precio, costo: +costo, stock: +stock, stock_minimo: +stock_minimo, unidad,
     tipo: tipo||'bebida', porcion_venta: +(porcion_venta||100),
@@ -224,6 +225,7 @@ app.put('/api/productos/:id', auth, adminOnly, async (req, res) => {
     bebidas_enlazadas: bebidas_enlazadas||[],
     adiciones_enlazadas: adiciones_enlazadas||[],
     bordes_enlazados: bordes_enlazados||[],
+    emoji: emoji||'📦',
     activo: activo ?? true
   }})
   res.json({ ok: true })
@@ -408,7 +410,7 @@ app.post('/api/ventas', auth, async (req, res) => {
 
         if (bebida?.id) {
           const vasos = (await db.productos.find({ activo: true }))
-            .filter(p => (p.tipo==='bebida'||p.tipo==='objeto') && Array.isArray(p.bebidas_enlazadas) && p.bebidas_enlazadas.includes(bebida.id))
+            .filter(p => (p.tipo==='bebida'||p.tipo==='objeto'||p.tipo==='producto') && Array.isArray(p.bebidas_enlazadas) && p.bebidas_enlazadas.includes(bebida.id))
           if (vasos.length === 0)
             return res.status(400).json({ error: `No hay bebidas/vasos registrados para "${bebida.nombre} ${bebida.oz}". Registra la bebida en inventario.` })
           for (const vaso of vasos) {
@@ -460,8 +462,8 @@ app.post('/api/ventas', auth, async (req, res) => {
         if (!item.es_chelada) {
           // Descontar stock del producto normal
           const prod = await db.productos.findOne({ _id: item.producto_id })
-          const descStock = prod?.tipo === 'comida'
-            ? (prod.porcion_venta || 100) * item.cantidad
+          const descStock = (prod?.porcion_venta > 1)
+            ? (prod.porcion_venta || 1) * item.cantidad
             : item.cantidad
           await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -descStock } })
           // Descontar insumos de la receta si existe
@@ -494,7 +496,7 @@ app.post('/api/ventas', auth, async (req, res) => {
           if (bebida?.id) {
             const todosObjetos = await db.productos.find({ activo: true })
             const vasos = todosObjetos.filter(p =>
-              (p.tipo === 'objeto' || p.tipo === 'bebida') &&
+              (p.tipo === 'objeto' || p.tipo === 'bebida' || p.tipo === 'producto') &&
               Array.isArray(p.bebidas_enlazadas) && p.bebidas_enlazadas.includes(bebida.id)
             )
             // Descontar exactamente 1 unidad por producto enlazado (no por cantidad de enlaces)
@@ -509,7 +511,7 @@ app.post('/api/ventas', auth, async (req, res) => {
             const todosIngredientesAd = await db.productos.find({ activo: true })
             for (const adicion of adiciones) {
               const ingredientesAd = todosIngredientesAd.filter(p =>
-                (p.tipo === 'adicion' || p.tipo === 'comida') &&
+                (p.tipo === 'adicion' || p.tipo === 'comida' || p.tipo === 'producto') &&
                 Array.isArray(p.adiciones_enlazadas) && p.adiciones_enlazadas.includes(adicion.id)
               )
               for (const ing of ingredientesAd) {
@@ -554,8 +556,8 @@ app.patch('/api/ventas/:id/cancelar', auth, adminOnly, async (req, res) => {
   const items = await db.ventaItems.find({ venta_id: req.params.id })
   for (const item of items) {
     const prod = await db.productos.findOne({ _id: item.producto_id })
-    const restaurar = prod?.tipo === 'comida'
-      ? (prod.porcion_venta || 100) * item.cantidad
+    const restaurar = (prod?.porcion_venta > 1)
+      ? (prod.porcion_venta || 1) * item.cantidad
       : item.cantidad
     await db.productos.update({ _id: item.producto_id }, { $inc: { stock: restaurar } })
     // Restaurar insumos

@@ -2,26 +2,16 @@
 import { api } from '../services/api'
 import { Plus, Edit2, Trash2, Package, AlertTriangle, Search, X, Upload } from 'lucide-react'
 
-// ── TWEMOJI ───────────────────────────────────────────────────────────────────
-// Renderiza emojis con el estilo ilustrado suave de Twemoji (Twitter/X)
-function TwEmoji({ emoji, size = 28 }) {
-  const codePoint = [...emoji].map(c => c.codePointAt(0).toString(16).padStart(4, '0')).join('-')
-  const src = `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoint}.svg`
-  return (
-    <img
-      src={src}
-      alt={emoji}
-      width={size}
-      height={size}
-      style={{ display: 'inline-block', verticalAlign: 'middle', imageRendering: 'auto' }}
-      onError={e => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'inline') }}
-    />
-  )
-}
-
 // ── TIPOS ─────────────────────────────────────────────────────────────────────
 const TIPOS = [
   { value: 'producto', label: 'Producto', emoji: '📦', color: '#7c3aed' },
+]
+
+// Emojis disponibles para productos (frutas, bebidas, ingredientes)
+const EMOJIS_PRODUCTO = [
+  '🍓','🍉','🥭','🍍','🍋','🍊','🍇','🍒','🍑','🥝',
+  '🫐','🍏','🥥','🌽','🥒','🌿','🧃','🥤','🍹','🍺',
+  '🧊','🧂','🍬','✨','🌟','💥','🎯','📦','🧴','🫙',
 ]
 
 const UNIDADES = [
@@ -40,7 +30,7 @@ const genCodigo = () => `PRD-${Date.now().toString(36).toUpperCase()}-${Math.ran
 const empty = {
   nombre:'', codigo:'', proveedor:'', costo:'0', precio:'0',
   stock:'0', stock_minimo:'5', tipo:'producto', unidad:'unidad',
-  porcion_venta:'1', descripcion:'', imagen:null, fecha_vencimiento:'',
+  porcion_venta:'1', descripcion:'', imagen:null, fecha_vencimiento:'', emoji:'📦',
 }
 
 const ic = { background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-primary)', borderRadius:'10px', padding:'8px 12px', fontSize:'14px', width:'100%' }
@@ -96,7 +86,7 @@ function TipoBadge({ tipo }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full"
       style={{ background: t.color + '20', color: t.color }}>
-      <TwEmoji emoji={t.emoji} size={12} /> {t.label}
+      {t.label}
     </span>
   )
 }
@@ -149,6 +139,22 @@ function FormProducto({ initial, onSave, onClose }) {
 
   return (
     <>
+      {/* Emoji */}
+      <div>
+        <label className="block text-xs font-medium mb-2" style={{ color:'var(--text-muted)' }}>Icono</label>
+        <div className="flex flex-wrap gap-2">
+          {EMOJIS_PRODUCTO.map(em => (
+            <button key={em} type="button" onClick={() => set('emoji', em)}
+              className="w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all"
+              style={{
+                background: form.emoji === em ? 'var(--primary)' : 'var(--bg-raised)',
+                border: `2px solid ${form.emoji === em ? 'var(--primary)' : 'var(--border)'}`,
+                transform: form.emoji === em ? 'scale(1.15)' : 'scale(1)'
+              }}>{em}</button>
+          ))}
+        </div>
+      </div>
+
       {/* Nombre */}
       <Field label="Nombre" required>
         <InputField value={form.nombre} onChange={e => set('nombre', e.target.value)} placeholder="Ej: Fresa, Canada Dry 22oz, Vaso..." />
@@ -391,13 +397,13 @@ export default function Inventario() {
         <div className="flex gap-1.5">
           {[{ value:'todos', label:'Todos', emoji:'📋', color:'var(--primary)' }].map(t => (
             <button key={t.value} onClick={() => setFiltroTipo(t.value)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+              className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
               style={{
                 background: filtroTipo === t.value ? (t.color||'var(--primary)') : 'var(--bg-raised)',
                 color: filtroTipo === t.value ? '#fff' : 'var(--text-muted)',
                 border: '1px solid var(--border)'
               }}>
-              <TwEmoji emoji={t.emoji} size={14} /> {t.label}
+              {t.emoji} {t.label}
             </button>
           ))}
         </div>
@@ -416,9 +422,9 @@ export default function Inventario() {
                 <div className="flex items-center gap-2 min-w-0">
                   {p.imagen
                     ? <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded-xl object-cover shrink-0"/>
-                    : <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl shrink-0"
                         style={{ background: tipo.color + '15' }}>
-                        <TwEmoji emoji={tipo.emoji} size={26} />
+                        {p.emoji || tipo.emoji}
                       </div>
                   }
                   <div className="min-w-0">
@@ -483,8 +489,7 @@ export default function Inventario() {
         })}
         {filtrados.length === 0 && (
           <div className="col-span-3 text-center py-16" style={{ color:'var(--text-dim)' }}>
-            <div className="flex justify-center mb-2"><TwEmoji emoji="📦" size={48} /></div>
-            <p className="text-sm">Sin productos</p>
+            <p className="text-4xl mb-2">📦</p><p className="text-sm">Sin productos</p>
           </div>
         )}
       </div>
