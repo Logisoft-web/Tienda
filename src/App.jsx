@@ -10,6 +10,7 @@ import Reportes from './pages/Reportes'
 import Usuarios from './pages/Usuarios'
 import Configuracion from './pages/Configuracion'
 import Clientes from './pages/Clientes'
+import Combos from './pages/Combos'
 import SuperAdmin from './pages/SuperAdmin'
 
 function PrivateRoute({ children, adminOnly = false, superOnly = false }) {
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="usuarios" element={<PrivateRoute adminOnly><Usuarios /></PrivateRoute>} />
             <Route path="configuracion" element={<PrivateRoute adminOnly><Configuracion /></PrivateRoute>} />
             <Route path="clientes" element={<Clientes />} />
+            <Route path="combos" element={<PrivateRoute adminOnly><Combos /></PrivateRoute>} />
             <Route path="superadmin" element={<PrivateRoute superOnly><SuperAdmin /></PrivateRoute>} />
           </Route>
         </Routes>

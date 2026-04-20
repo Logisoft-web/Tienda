@@ -131,8 +131,25 @@ export const api = {
       })
   },
 
+  descargarContable: (params = {}) => {
+    const q = new URLSearchParams({ ...params, formato: 'csv' }).toString()
+    const token = getToken()
+    const url = `${BASE}/reportes/contable${q ? '?' + q : ''}`
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const burl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = burl
+        a.download = `reporte_dian_${params.desde || 'hoy'}_${params.hasta || 'hoy'}.csv`
+        a.click()
+        URL.revokeObjectURL(burl)
+      })
+  },
+
   // Compras / Contabilidad inventario
   getCompras: (mes) => req('GET', `/compras${mes ? '?mes=' + mes : ''}`),
+
   registrarCompra: (body) => req('POST', '/compras', body),
   getContableMensual: (meses = 6) => req('GET', `/reportes/contable-mensual?meses=${meses}`),
 
