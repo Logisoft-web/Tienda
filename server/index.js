@@ -462,10 +462,12 @@ app.post('/api/ventas', auth, async (req, res) => {
         if (!item.es_chelada) {
           // Descontar stock del producto normal
           const prod = await db.productos.findOne({ _id: item.producto_id })
-          const descStock = (prod?.porcion_venta > 1)
-            ? (prod.porcion_venta || 1) * item.cantidad
-            : item.cantidad
-          await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -descStock } })
+          // porcion_venta es cuánto se consume por cada unidad vendida (gramos, ml, etc.)
+          // Si porcion_venta >= 1 y la unidad es de peso/volumen, usar porcion_venta; si no, descontar 1 por unidad
+          const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
+          const esMedida = UNIDADES_MEDIDA.includes(prod?.unidad)
+          const porcion = (esMedida && prod?.porcion_venta > 0) ? prod.porcion_venta : 1
+          await db.productos.update({ _id: item.producto_id }, { $inc: { stock: -(porcion * item.cantidad) } })
           // Descontar insumos de la receta si existe
           const receta = await db.recetas.findOne({ producto_id: item.producto_id })
           if (receta?.ingredientes?.length) {
@@ -482,13 +484,15 @@ app.post('/api/ventas', auth, async (req, res) => {
           // Descontar frutas/comidas enlazadas al sabor vendido
           if (sabor?.id) {
             const todosIngredientes = await db.productos.find({ activo: true })
+            const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
             const ingredientes = todosIngredientes.filter(p =>
               p.tipo === 'sabor' &&
               Array.isArray(p.sabores_enlazados) && p.sabores_enlazados.includes(sabor.id)
             )
             for (const ing of ingredientes) {
-              const gramos = ing.porcion_venta || 100
-              await db.productos.update({ _id: ing._id }, { $inc: { stock: -(gramos * item.cantidad) } })
+              const esMedida = UNIDADES_MEDIDA.includes(ing.unidad)
+              const porcion = (esMedida && ing.porcion_venta > 0) ? ing.porcion_venta : 1
+              await db.productos.update({ _id: ing._id }, { $inc: { stock: -(porcion * item.cantidad) } })
             }
           }
 
@@ -509,14 +513,16 @@ app.post('/api/ventas', auth, async (req, res) => {
           // Descontar ingredientes enlazados a las adiciones seleccionadas
           if (adiciones?.length) {
             const todosIngredientesAd = await db.productos.find({ activo: true })
+            const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
             for (const adicion of adiciones) {
               const ingredientesAd = todosIngredientesAd.filter(p =>
                 (p.tipo === 'adicion' || p.tipo === 'comida' || p.tipo === 'producto') &&
                 Array.isArray(p.adiciones_enlazadas) && p.adiciones_enlazadas.includes(adicion.id)
               )
               for (const ing of ingredientesAd) {
-                const gramos = ing.porcion_venta || 100
-                await db.productos.update({ _id: ing._id }, { $inc: { stock: -(gramos * item.cantidad) } })
+                const esMedida = UNIDADES_MEDIDA.includes(ing.unidad)
+                const porcion = (esMedida && ing.porcion_venta > 0) ? ing.porcion_venta : 1
+                await db.productos.update({ _id: ing._id }, { $inc: { stock: -(porcion * item.cantidad) } })
               }
             }
           }
@@ -524,12 +530,14 @@ app.post('/api/ventas', auth, async (req, res) => {
           // Descontar bordes enlazados al borde seleccionado
           if (item.detalle?.borde?.id) {
             const todosBordes = await db.productos.find({ tipo: 'borde', activo: true })
+            const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
             const bordesEnlazados = todosBordes.filter(p =>
               Array.isArray(p.bordes_enlazados) && p.bordes_enlazados.includes(item.detalle.borde.id)
             )
             for (const b of bordesEnlazados) {
-              const gramos = b.porcion_venta || 5
-              await db.productos.update({ _id: b._id }, { $inc: { stock: -(gramos * item.cantidad) } })
+              const esMedida = UNIDADES_MEDIDA.includes(b.unidad)
+              const porcion = (esMedida && b.porcion_venta > 0) ? b.porcion_venta : 1
+              await db.productos.update({ _id: b._id }, { $inc: { stock: -(porcion * item.cantidad) } })
             }
           }
         }
@@ -537,12 +545,12 @@ app.post('/api/ventas', auth, async (req, res) => {
         // Combo: descontar cada producto del combo respetando porcion_venta
         const combo = await db.combos.findOne({ _id: item.combo_id })
         if (combo?.items?.length) {
+          const UNIDADES_MEDIDA = ['gramo', 'mililitro', 'kilogramo', 'litro', 'libra']
           for (const ci of combo.items) {
             const prod = await db.productos.findOne({ _id: ci.producto_id })
-            // Si el producto se mide por peso/volumen, descontar porcion_venta por cada unidad vendida
-            const descuento = (prod?.porcion_venta > 1)
-              ? prod.porcion_venta * ci.cantidad * item.cantidad
-              : ci.cantidad * item.cantidad
+            const esMedida = UNIDADES_MEDIDA.includes(prod?.unidad)
+            const porcion = (esMedida && prod?.porcion_venta > 0) ? prod.porcion_venta : 1
+            const descuento = porcion * ci.cantidad * item.cantidad
             await db.productos.update({ _id: ci.producto_id }, { $inc: { stock: -descuento } })
           }
         }
