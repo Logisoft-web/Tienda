@@ -506,15 +506,28 @@ app.post('/api/ventas', auth, async (req, res) => {
 
           // Descontar ingredientes enlazados a las adiciones seleccionadas
           if (adiciones?.length) {
-            const todosIngredientesAd = await db.productos.find({ tipo: 'comida', activo: true })
+            const todosIngredientesAd = await db.productos.find({ activo: true })
             for (const adicion of adiciones) {
               const ingredientesAd = todosIngredientesAd.filter(p =>
+                (p.tipo === 'adicion' || p.tipo === 'comida') &&
                 Array.isArray(p.adiciones_enlazadas) && p.adiciones_enlazadas.includes(adicion.id)
               )
               for (const ing of ingredientesAd) {
                 const gramos = ing.porcion_venta || 100
                 await db.productos.update({ _id: ing._id }, { $inc: { stock: -(gramos * item.cantidad) } })
               }
+            }
+          }
+
+          // Descontar bordes enlazados al borde seleccionado
+          if (item.detalle?.borde?.id) {
+            const todosBordes = await db.productos.find({ tipo: 'borde', activo: true })
+            const bordesEnlazados = todosBordes.filter(p =>
+              Array.isArray(p.bordes_enlazados) && p.bordes_enlazados.includes(item.detalle.borde.id)
+            )
+            for (const b of bordesEnlazados) {
+              const gramos = b.porcion_venta || 5
+              await db.productos.update({ _id: b._id }, { $inc: { stock: -(gramos * item.cantidad) } })
             }
           }
         }
