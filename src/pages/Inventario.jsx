@@ -398,7 +398,7 @@ export default function Inventario() {
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   {p.imagen
-                    ? <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded-xl object-cover shrink-0"/>
+                    ? <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded-xl object-contain shrink-0"/>
                     : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl shrink-0"
                         style={{ background: tipo.color + '15' }}>
                         {p.emoji || tipo.emoji}

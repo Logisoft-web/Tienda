@@ -359,7 +359,7 @@ export default function Ventas() {
                     className="product-card ripple-container relative rounded-2xl overflow-hidden disabled:opacity-40"
                     style={{ aspectRatio:'1/1', background:'var(--bg-card)', border:'1px solid var(--border)', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                     {p.imagen
-                      ? <img src={p.imagen} alt={p.nombre} className="absolute inset-0 w-full h-full object-cover"/>
+                      ? <img src={p.imagen} alt={p.nombre} className="absolute inset-0 w-full h-full object-contain p-2"/>
                       : <div className="absolute inset-0 flex items-center justify-center text-4xl"
                           style={{ background:'rgba(244,98,42,0.07)' }}>
                           {p.emoji || '🛒'}

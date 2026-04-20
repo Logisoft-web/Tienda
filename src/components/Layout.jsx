@@ -159,6 +159,13 @@ export default function Layout() {
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.background = 'transparent' }}>
             <LogOut size={14}/> Cerrar sesión
           </button>
+          <div className="mt-2 pt-2 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+            <a href="https://www.logisoft-web.com" target="_blank" rel="noopener noreferrer"
+              className="text-xs" style={{ color: 'var(--text-dim)' }}>
+              Desarrollado por{' '}
+              <span className="font-bold" style={{ color: 'var(--primary)' }}>LogiSoft-Web</span>
+            </a>
+          </div>
         </div>
       </aside>
 
