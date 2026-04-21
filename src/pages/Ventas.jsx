@@ -1,11 +1,10 @@
 ﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
-import { ShoppingCart, CreditCard, Banknote, Smartphone, CheckCircle, X, Minus, Plus, Trash2, AlertTriangle, Search, ChevronRight, Check } from 'lucide-react'
+import { ShoppingCart, Banknote, Smartphone, CheckCircle, X, Minus, Plus, Trash2, AlertTriangle, Search, ChevronRight, Check } from 'lucide-react'
 
 const METODOS = [
   { id: 'efectivo',      label: 'Efectivo',      icon: Banknote },
-  { id: 'tarjeta',       label: 'Tarjeta',        icon: CreditCard },
   { id: 'transferencia', label: 'Transferencia',  icon: Smartphone },
 ]
 
