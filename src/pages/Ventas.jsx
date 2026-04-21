@@ -480,6 +480,23 @@ export default function Ventas() {
             ))}
           </div>
 
+          {metodo === 'transferencia' && config?.qr_transferencia && (
+            <div className="rounded-2xl overflow-hidden text-center py-4 px-3 space-y-2"
+              style={{ background:'var(--bg-raised)', border:'2px solid var(--primary)' }}>
+              <p className="text-xs font-bold" style={{ color:'var(--primary)' }}>📲 Escanea para pagar</p>
+              <img
+                src={config.qr_transferencia}
+                alt="QR Transferencia"
+                className="w-40 h-40 object-contain mx-auto rounded-xl"
+                style={{ border:'1px solid var(--border)' }}
+              />
+              <p className="text-xs font-bold" style={{ color:'var(--text-primary)' }}>
+                Total: ${total.toLocaleString('es-CO')}
+              </p>
+              <p className="text-xs" style={{ color:'var(--text-muted)' }}>Nequi · Daviplata · Transferencia</p>
+            </div>
+          )}
+
           {metodo === 'efectivo' && (
             <div>
               <input type="number" placeholder="Monto recibido" value={montoRecibido}
@@ -559,78 +576,120 @@ export default function Ventas() {
 
             <div className="overflow-y-auto">
               <div id="factura-print" className="px-5 py-4 font-mono text-xs space-y-0" style={{ color:'#1a1a1a', background:'#fff' }}>
+                {/* ── Cabecera empresa ── */}
                 <div className="text-center mb-3">
                   {config?.logo && <img src={config.logo} alt="logo" className="h-10 mx-auto mb-1 object-contain"/>}
                   <p className="font-bold text-sm uppercase tracking-wide">{config?.nombre||'ENJOY CHELADAS'}</p>
                   {config?.nit && <p>NIT: {config.nit}</p>}
                   {config?.direccion && <p>{config.direccion}</p>}
+                  {config?.ciudad && <p>{config.ciudad}</p>}
+                  {config?.telefono && <p>Tel: {config.telefono}</p>}
+                  {config?.descripcion && <p className="italic text-gray-500">{config.descripcion}</p>}
                   <div className="border-t border-dashed border-gray-300 mt-2 pt-2">
                     <p className="font-bold text-xs">DOCUMENTO EQUIVALENTE POS</p>
                   </div>
                 </div>
-                <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
-                  {[['No.', ticketData.folio],
-                    ['Fecha', new Date().toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'})],
-                    ['Pago', ticketData.metodo]].map(([k,v]) => (
-                    <div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="capitalize">{v}</span></div>
-                  ))}
-                  {ticketData.nombre_cliente && (
-                    <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-200 pt-1 mt-1">
-                      <span>Cliente</span><span>{ticketData.nombre_cliente}</span>
-                    </div>
-                  )}
-                  {ticketData.doc_cliente && (
-                    <div className="flex justify-between"><span className="text-gray-500">Doc.</span><span>{ticketData.doc_cliente}</span></div>
-                  )}
-                </div>
-                <div className="border-t border-dashed border-gray-300 pt-2 pb-2">
-                  {ticketData.items.map((item, idx) => (
-                    <div key={idx} className="mb-1.5 flex justify-between">
-                      <span className="font-semibold">
-                        {item.icono && <span className="mr-1">{item.icono}</span>}
-                        {item.cantidad > 1 ? `${item.cantidad}× ` : ''}{item.nombre}
-                      </span>
-                      <span>${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
-                  {ticketData.iva_pct > 0 ? (
+
+                {/* ── Campos dinámicos ── */}
+                {(() => {
+                  const campos = config?.factura_campos || []
+                  const visible = (id) => !campos.length || (campos.find(c => c.id === id)?.visible !== false)
+
+                  return (
                     <>
-                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${(ticketData.total - ticketData.iva_monto).toLocaleString('es-CO')}</span></div>
-                      {ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
-                      <div className="flex justify-between text-gray-500"><span>IVA {ticketData.iva_pct}%</span><span>${ticketData.iva_monto.toLocaleString('es-CO')}</span></div>
+                      {/* Info básica */}
+                      <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
+                        {visible('numero') && <div className="flex justify-between"><span className="text-gray-500">No.</span><span>{ticketData.folio}</span></div>}
+                        {visible('fecha') && <div className="flex justify-between"><span className="text-gray-500">Fecha</span><span>{new Date().toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'})}</span></div>}
+                        {visible('pago') && <div className="flex justify-between capitalize"><span className="text-gray-500">Pago</span><span className="capitalize">{ticketData.metodo}</span></div>}
+                        {visible('cliente') && ticketData.nombre_cliente && (
+                          <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-200 pt-1 mt-1">
+                            <span>Cliente</span><span>{ticketData.nombre_cliente}</span>
+                          </div>
+                        )}
+                        {visible('doc_cliente') && ticketData.doc_cliente && (
+                          <div className="flex justify-between"><span className="text-gray-500">Doc.</span><span>{ticketData.doc_cliente}</span></div>
+                        )}
+                      </div>
+
+                      {/* Items */}
+                      <div className="border-t border-dashed border-gray-300 pt-2 pb-2">
+                        {ticketData.items.map((item, idx) => (
+                          <div key={idx} className="mb-1.5 flex justify-between">
+                            <span className="font-semibold">
+                              {item.icono && <span className="mr-1">{item.icono}</span>}
+                              {item.cantidad > 1 ? `${item.cantidad}× ` : ''}{item.nombre}
+                            </span>
+                            <span>${(item.precio_unitario * item.cantidad).toLocaleString('es-CO')}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Totales */}
+                      <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
+                        {ticketData.iva_pct > 0 ? (
+                          <>
+                            {visible('subtotal') && <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${(ticketData.total - ticketData.iva_monto).toLocaleString('es-CO')}</span></div>}
+                            {visible('descuento') && ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
+                            {visible('iva') && <div className="flex justify-between text-gray-500"><span>IVA {ticketData.iva_pct}%</span><span>${ticketData.iva_monto.toLocaleString('es-CO')}</span></div>}
+                          </>
+                        ) : (
+                          <>
+                            {visible('subtotal') && <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${ticketData.subtotal.toLocaleString('es-CO')}</span></div>}
+                            {visible('descuento') && ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
+                          </>
+                        )}
+                        {visible('total') && (
+                          <div className="flex justify-between font-bold text-sm border-t border-gray-400 pt-1 mt-1">
+                            <span>TOTAL</span><span>${ticketData.total.toLocaleString('es-CO')}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Forma de pago */}
+                      <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
+                        <p className="text-center text-xs font-semibold text-gray-600 mb-1">Forma de Pago</p>
+                        <div className="flex justify-between capitalize"><span>{ticketData.metodo}</span><span>${ticketData.total.toLocaleString('es-CO')}</span></div>
+                        {visible('cambio') && ticketData.metodo === 'efectivo' && (
+                          <div className="flex justify-between font-bold">
+                            <span>Cambio</span><span>${(ticketData.cambio||0).toLocaleString('es-CO')}</span>
+                          </div>
+                        )}
+                        {visible('qr') && ticketData.metodo === 'transferencia' && config?.qr_transferencia && (
+                          <div className="text-center mt-2">
+                            <p className="text-xs text-gray-500 mb-1">Escanea para pagar:</p>
+                            <img src={config.qr_transferencia} alt="QR Transferencia" className="w-32 h-32 object-contain mx-auto rounded-lg border border-gray-200" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Campos personalizados */}
+                      {campos.filter(c => c.personalizado && c.visible).length > 0 && (
+                        <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
+                          {campos.filter(c => c.personalizado && c.visible).map(c => (
+                            <div key={c.id} className="flex justify-between">
+                              <span className="text-gray-500">{c.label}</span>
+                              <span>{c.valor || ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Pie */}
+                      <div className="border-t border-dashed border-gray-300 pt-2 text-center text-gray-400 space-y-0.5">
+                        {visible('llamar_a') && ticketData.nombre_cliente && (
+                          <div className="bg-orange-50 rounded-xl py-3 mb-2">
+                            <p className="text-xs text-gray-500 mb-0.5">Llamar a:</p>
+                            <p className="font-bold text-xl text-orange-600 uppercase tracking-wide">{ticketData.nombre_cliente}</p>
+                            {ticketData.doc_cliente && <p className="text-xs text-gray-400">Doc: {ticketData.doc_cliente}</p>}
+                          </div>
+                        )}
+                        {visible('mensaje') && <p className="font-semibold text-gray-600">{ticketData.mensaje}</p>}
+                        {visible('pie') && <p>{config?.pie_factura || '— Enjoy Cheladas POS —'}</p>}
+                      </div>
                     </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${ticketData.subtotal.toLocaleString('es-CO')}</span></div>
-                      {ticketData.descuento > 0 && <div className="flex justify-between text-green-700"><span>Descuento</span><span>-${ticketData.descuento.toLocaleString('es-CO')}</span></div>}
-                    </>
-                  )}
-                  <div className="flex justify-between font-bold text-sm border-t border-gray-400 pt-1 mt-1">
-                    <span>TOTAL</span><span>${ticketData.total.toLocaleString('es-CO')}</span>
-                  </div>
-                </div>
-                <div className="border-t border-dashed border-gray-300 pt-2 pb-2 space-y-0.5">
-                  <p className="text-center text-xs font-semibold text-gray-600 mb-1">Forma de Pago</p>
-                  <div className="flex justify-between capitalize"><span>{ticketData.metodo}</span><span>${ticketData.total.toLocaleString('es-CO')}</span></div>
-                  {ticketData.metodo === 'efectivo' && (
-                    <div className="flex justify-between font-bold">
-                      <span>Cambio</span><span>${(ticketData.cambio||0).toLocaleString('es-CO')}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="border-t border-dashed border-gray-300 pt-2 text-center text-gray-400 space-y-0.5">
-                  {ticketData.nombre_cliente && (
-                    <div className="bg-orange-50 rounded-xl py-3 mb-2">
-                      <p className="text-xs text-gray-500 mb-0.5">Llamar a:</p>
-                      <p className="font-bold text-xl text-orange-600 uppercase tracking-wide">{ticketData.nombre_cliente}</p>
-                      {ticketData.doc_cliente && <p className="text-xs text-gray-400">Doc: {ticketData.doc_cliente}</p>}
-                    </div>
-                  )}
-                  <p className="font-semibold text-gray-600">{ticketData.mensaje}</p>
-                  <p>— Enjoy Cheladas POS —</p>
-                </div>
+                  )
+                })()}
               </div>
             </div>
 

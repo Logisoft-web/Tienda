@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../services/api'
-import { Save, Building2, Printer, Percent, Upload, X, CheckCircle } from 'lucide-react'
+import { Save, Building2, Printer, Percent, Upload, X, CheckCircle, QrCode, FileText, Plus, GripVertical, Eye, EyeOff } from 'lucide-react'
 
 const TAMANOS = [
   { value: '58mm',  label: '58mm — Rollo pequeño' },
@@ -9,23 +9,92 @@ const TAMANOS = [
   { value: 'media', label: 'Media carta' },
 ]
 
+// Campos por defecto de la factura
+const CAMPOS_DEFAULT = [
+  { id: 'numero',      label: 'Número de factura (No.)',   visible: true,  editable: false },
+  { id: 'fecha',       label: 'Fecha y hora',              visible: true,  editable: false },
+  { id: 'pago',        label: 'Método de pago',            visible: true,  editable: false },
+  { id: 'cliente',     label: 'Nombre del cliente',        visible: true,  editable: false },
+  { id: 'doc_cliente', label: 'Documento del cliente',     visible: true,  editable: false },
+  { id: 'subtotal',    label: 'Subtotal',                  visible: true,  editable: false },
+  { id: 'descuento',   label: 'Descuento',                 visible: true,  editable: false },
+  { id: 'iva',         label: 'IVA',                       visible: true,  editable: false },
+  { id: 'total',       label: 'Total',                     visible: true,  editable: false },
+  { id: 'cambio',      label: 'Cambio (efectivo)',         visible: true,  editable: false },
+  { id: 'qr',          label: 'QR de transferencia',       visible: true,  editable: false },
+  { id: 'llamar_a',    label: 'Llamar a (nombre cliente)', visible: true,  editable: false },
+  { id: 'mensaje',     label: 'Mensaje aleatorio',         visible: true,  editable: false },
+  { id: 'pie',         label: 'Pie de factura',            visible: true,  editable: false },
+]
+
 export default function Configuracion() {
   const [form, setForm] = useState({
     nombre: '', nit: '', direccion: '', telefono: '', email: '',
     ciudad: '', descripcion: '', logo: null,
     iva: 19, tamano_impresion: '80mm',
-    pie_factura: '¡Gracias por su compra!'
+    pie_factura: '¡Gracias por su compra!',
+    qr_transferencia: null,
+    factura_campos: CAMPOS_DEFAULT,
   })
   const [loading, setLoading] = useState(false)
   const [guardado, setGuardado] = useState(false)
   const [msg, setMsg] = useState('')
   const fileRef = useRef()
+  const qrRef = useRef()
+
+  // Estado para nuevo campo personalizado
+  const [nuevoCampo, setNuevoCampo] = useState({ label: '', valor: '' })
+  const [mostrandoNuevoCampo, setMostrandoNuevoCampo] = useState(false)
 
   useEffect(() => {
-    api.getConfig().then(cfg => setForm(f => ({ ...f, ...cfg }))).catch(console.error)
+    api.getConfig().then(cfg => {
+      // Merge campos guardados con defaults para no perder campos nuevos del sistema
+      if (cfg.factura_campos?.length) {
+        const guardados = cfg.factura_campos
+        const merged = CAMPOS_DEFAULT.map(d => {
+          const guardado = guardados.find(g => g.id === d.id)
+          return guardado ? { ...d, ...guardado } : d
+        })
+        // Agregar campos personalizados (los que no están en CAMPOS_DEFAULT)
+        const personalizados = guardados.filter(g => !CAMPOS_DEFAULT.find(d => d.id === g.id))
+        cfg.factura_campos = [...merged, ...personalizados]
+      } else {
+        cfg.factura_campos = CAMPOS_DEFAULT
+      }
+      setForm(f => ({ ...f, ...cfg }))
+    }).catch(console.error)
   }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const toggleCampo = (id) => {
+    setForm(f => ({
+      ...f,
+      factura_campos: f.factura_campos.map(c => c.id === id ? { ...c, visible: !c.visible } : c)
+    }))
+  }
+
+  const eliminarCampoPersonalizado = (id) => {
+    setForm(f => ({ ...f, factura_campos: f.factura_campos.filter(c => c.id !== id) }))
+  }
+
+  const agregarCampoPersonalizado = () => {
+    if (!nuevoCampo.label.trim()) return
+    const id = 'custom_' + Date.now()
+    setForm(f => ({
+      ...f,
+      factura_campos: [...f.factura_campos, { id, label: nuevoCampo.label.trim(), valor: nuevoCampo.valor.trim(), visible: true, editable: true, personalizado: true }]
+    }))
+    setNuevoCampo({ label: '', valor: '' })
+    setMostrandoNuevoCampo(false)
+  }
+
+  const editarCampoPersonalizado = (id, key, val) => {
+    setForm(f => ({
+      ...f,
+      factura_campos: f.factura_campos.map(c => c.id === id ? { ...c, [key]: val } : c)
+    }))
+  }
 
   const handleLogo = (e) => {
     const file = e.target.files[0]
@@ -33,6 +102,15 @@ export default function Configuracion() {
     if (file.size > 500 * 1024) { setMsg('El logo no debe superar 500KB'); return }
     const reader = new FileReader()
     reader.onload = (ev) => set('logo', ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const handleQR = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (file.size > 500 * 1024) { setMsg('El QR no debe superar 500KB'); return }
+    const reader = new FileReader()
+    reader.onload = (ev) => set('qr_transferencia', ev.target.result)
     reader.readAsDataURL(file)
   }
 
@@ -125,6 +203,39 @@ export default function Configuracion() {
           </div>
         </section>
 
+        {/* ── QR Transferencia ── */}
+        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h2 className="font-display font-semibold text-dark mb-4 flex items-center gap-2">
+            <QrCode size={17} className="text-primary" /> QR para pago por transferencia
+          </h2>
+          <div className="flex items-start gap-4">
+            {form.qr_transferencia ? (
+              <div className="relative shrink-0">
+                <img src={form.qr_transferencia} alt="QR Transferencia" className="w-32 h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-1" />
+                <button onClick={() => set('qr_transferencia', null)}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white">
+                  <X size={11} />
+                </button>
+              </div>
+            ) : (
+              <div className="w-32 h-32 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 shrink-0">
+                <QrCode size={24} />
+                <span className="text-xs mt-1 text-center px-1">QR pago</span>
+              </div>
+            )}
+            <div className="flex-1">
+              <p className="text-xs text-gray-500 mb-3">
+                Este QR aparecerá en el ticket cuando el cliente pague por transferencia. Sube la imagen del QR de tu Nequi, Daviplata o cuenta bancaria. Formatos: PNG, JPG. Máximo 500KB.
+              </p>
+              <input ref={qrRef} type="file" accept="image/*" onChange={handleQR} className="hidden" />
+              <button onClick={() => qrRef.current.click()}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                {form.qr_transferencia ? 'Cambiar QR' : 'Seleccionar imagen QR'}
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* ── IVA ── */}
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="font-display font-semibold text-dark mb-4 flex items-center gap-2">
@@ -197,22 +308,140 @@ export default function Configuracion() {
           </div>
         </section>
 
+        {/* ── Diseño de factura ── */}
+        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h2 className="font-display font-semibold text-dark mb-1 flex items-center gap-2">
+            <FileText size={17} className="text-primary" /> Diseño de factura
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">Activa o desactiva cada sección que aparece en el ticket. También puedes agregar campos personalizados.</p>
+
+          <div className="space-y-2">
+            {(form.factura_campos || CAMPOS_DEFAULT).map(campo => (
+              <div key={campo.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${campo.visible ? 'border-orange-200 bg-orange-50/40' : 'border-gray-100 bg-gray-50'}`}>
+                <GripVertical size={14} className="text-gray-300 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  {campo.personalizado ? (
+                    <div className="flex gap-2">
+                      <input
+                        value={campo.label}
+                        onChange={e => editarCampoPersonalizado(campo.id, 'label', e.target.value)}
+                        placeholder="Etiqueta"
+                        className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                      <input
+                        value={campo.valor || ''}
+                        onChange={e => editarCampoPersonalizado(campo.id, 'valor', e.target.value)}
+                        placeholder="Valor (texto fijo)"
+                        className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
+                  ) : (
+                    <span className={`text-sm font-medium ${campo.visible ? 'text-gray-700' : 'text-gray-400'}`}>{campo.label}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => toggleCampo(campo.id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${campo.visible ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>
+                    {campo.visible ? <><Eye size={12}/> Visible</> : <><EyeOff size={12}/> Oculto</>}
+                  </button>
+                  {campo.personalizado && (
+                    <button onClick={() => eliminarCampoPersonalizado(campo.id)}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 transition-colors">
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Agregar campo personalizado */}
+          {mostrandoNuevoCampo ? (
+            <div className="mt-3 p-3 rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/30 space-y-2">
+              <p className="text-xs font-semibold text-gray-600">Nuevo campo personalizado</p>
+              <div className="flex gap-2">
+                <input
+                  value={nuevoCampo.label}
+                  onChange={e => setNuevoCampo(n => ({ ...n, label: e.target.value }))}
+                  placeholder="Etiqueta (ej: Instagram)"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <input
+                  value={nuevoCampo.valor}
+                  onChange={e => setNuevoCampo(n => ({ ...n, valor: e.target.value }))}
+                  placeholder="Valor (ej: @enjoycheladas)"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={agregarCampoPersonalizado}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                  style={{ background: 'linear-gradient(135deg, #FF6B35, #F7931E)' }}>
+                  Agregar
+                </button>
+                <button onClick={() => { setMostrandoNuevoCampo(false); setNuevoCampo({ label: '', valor: '' }) }}
+                  className="px-4 py-2 rounded-xl text-sm text-gray-500 border border-gray-200">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setMostrandoNuevoCampo(true)}
+              className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-orange-300 hover:text-orange-500 transition-colors">
+              <Plus size={15} /> Agregar campo personalizado
+            </button>
+          )}
+        </section>
+
         {/* Preview factura */}
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <h2 className="font-display font-semibold text-dark mb-4">Vista previa del encabezado</h2>
-          <div className="border border-dashed border-gray-200 rounded-xl p-4 text-center text-sm max-w-xs mx-auto font-mono">
-            {form.logo && <img src={form.logo} alt="logo" className="h-12 object-contain mx-auto mb-2" />}
-            <p className="font-bold text-base">{form.nombre || 'Nombre del negocio'}</p>
-            {form.nit && <p className="text-xs text-gray-500">NIT: {form.nit}</p>}
-            {form.direccion && <p className="text-xs text-gray-500">{form.direccion}</p>}
-            {form.ciudad && <p className="text-xs text-gray-500">{form.ciudad}</p>}
-            {form.telefono && <p className="text-xs text-gray-500">Tel: {form.telefono}</p>}
-            {form.descripcion && <p className="text-xs text-gray-400 italic mt-1">{form.descripcion}</p>}
-            <div className="border-t border-dashed border-gray-300 my-2" />
-            <p className="text-xs text-gray-400">Ticket #{form.tamano_impresion}</p>
-            <p className="text-xs text-gray-400">IVA incluido {form.iva}%</p>
-            <div className="border-t border-dashed border-gray-300 my-2" />
-            <p className="text-xs text-gray-400">{form.pie_factura}</p>
+          <h2 className="font-display font-semibold text-dark mb-4">Vista previa del ticket</h2>
+          <div className="border border-dashed border-gray-200 rounded-xl p-4 text-center text-xs max-w-xs mx-auto font-mono space-y-0.5" style={{ color: '#1a1a1a' }}>
+            {form.logo && <img src={form.logo} alt="logo" className="h-10 object-contain mx-auto mb-1" />}
+            <p className="font-bold text-sm uppercase">{form.nombre || 'ENJOY CHELADAS'}</p>
+            {form.nit && <p className="text-gray-500">NIT: {form.nit}</p>}
+            {form.direccion && <p className="text-gray-500">{form.direccion}</p>}
+            {form.ciudad && <p className="text-gray-500">{form.ciudad}</p>}
+            {form.telefono && <p className="text-gray-500">Tel: {form.telefono}</p>}
+            {form.descripcion && <p className="text-gray-400 italic">{form.descripcion}</p>}
+            <div className="border-t border-dashed border-gray-300 my-1.5" />
+            <p className="font-bold text-xs">DOCUMENTO EQUIVALENTE POS</p>
+            <div className="border-t border-dashed border-gray-300 my-1.5" />
+            {(form.factura_campos || CAMPOS_DEFAULT).filter(c => c.visible).map(c => {
+              const ejemplos = {
+                numero: ['No.', 'EC-20260421-1234'],
+                fecha: ['Fecha', '21/04/26, 8:42 AM'],
+                pago: ['Pago', 'Efectivo'],
+                cliente: ['Cliente', 'Juan Pérez'],
+                doc_cliente: ['Doc.', '1234567890'],
+                subtotal: ['Subtotal', '$8.403'],
+                descuento: ['Descuento', '-$500'],
+                iva: ['IVA 19%', '$1.597'],
+                total: ['TOTAL', '$10.000'],
+                cambio: ['Cambio', '$0'],
+                qr: null,
+                llamar_a: null,
+                mensaje: null,
+                pie: null,
+              }
+              if (c.id === 'qr') return <p key={c.id} className="text-gray-400 text-xs">[QR transferencia]</p>
+              if (c.id === 'llamar_a') return <div key={c.id} className="bg-orange-50 rounded py-1 my-1"><p className="text-orange-500 font-bold text-sm">JUAN PÉREZ</p></div>
+              if (c.id === 'mensaje') return <p key={c.id} className="text-gray-400">¡Que la disfrutes! 🎉</p>
+              if (c.id === 'pie') return <p key={c.id} className="text-gray-400">{form.pie_factura || '¡Gracias por su compra!'}</p>
+              if (c.personalizado) return (
+                <div key={c.id} className="flex justify-between">
+                  <span className="text-gray-500">{c.label}</span>
+                  <span>{c.valor || '—'}</span>
+                </div>
+              )
+              const ej = ejemplos[c.id]
+              if (!ej) return null
+              return (
+                <div key={c.id} className="flex justify-between">
+                  <span className="text-gray-500">{ej[0]}</span><span>{ej[1]}</span>
+                </div>
+              )
+            })}
           </div>
         </section>
 
